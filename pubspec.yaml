@@ -1,0 +1,52 @@
+name: lokai
+description: LokAI – Local Leadership Decision Intelligence Platform
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # Navigation
+  go_router: ^13.2.0
+
+  # HTTP
+  dio: ^5.4.3+1
+
+  # Storage
+  shared_preferences: ^2.2.3
+  flutter_secure_storage: ^9.0.0
+
+  # UI
+  cupertino_icons: ^1.0.6
+  google_fonts: ^6.2.1
+  fl_chart: ^0.68.0
+  cached_network_image: ^3.3.1
+  shimmer: ^3.0.0
+
+  # Media — removed record (buggy), using image_picker only
+  image_picker: ^1.1.2
+  file_picker: ^8.0.7
+
+  # Location
+  geolocator: ^12.0.0
+
+  # Utils
+  intl: ^0.19.0
+  uuid: ^4.4.0
+  permission_handler: ^11.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
