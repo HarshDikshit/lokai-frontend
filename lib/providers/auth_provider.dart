@@ -96,11 +96,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String email,
     required String password,
     required String role,
+    String? phone,                        // ← add
+    Map<String, String>? leaderLocation,  // ← add
   }) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final data = await _api.register(
-        name: name, email: email, password: password, role: role,
+        name: name, email: email, password: password, role: role, phone: phone, leaderLocation: leaderLocation,
       );
       await _saveAuthData(data);
       state = state.copyWith(

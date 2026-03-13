@@ -23,9 +23,7 @@ class ApiService {
         }
         return handler.next(options);
       },
-      onError: (error, handler) {
-        return handler.next(error);
-      },
+      onError: (error, handler) => handler.next(error),
     ));
   }
 
@@ -36,15 +34,22 @@ class ApiService {
 
   Dio get dio => _dio;
 
-  // ── Auth ────────────────────────────────────────────────────────────────────
+  // ── Auth ──────────────────────────────────────────────────────────────────
   Future<Map<String, dynamic>> register({
     required String name,
     required String email,
     required String password,
     required String role,
+    String? phone,
+    Map<String, String>? leaderLocation,
   }) async {
     final res = await _dio.post(ApiConstants.register, data: {
-      'name': name, 'email': email, 'password': password, 'role': role,
+      'name': name,
+      'email': email,
+      'password': password,
+      'role': role,
+      if (phone != null) 'phone': phone,
+      if (leaderLocation != null) 'leader_location': leaderLocation,
     });
     return res.data;
   }
@@ -54,7 +59,8 @@ class ApiService {
     required String password,
   }) async {
     final res = await _dio.post(ApiConstants.login, data: {
-      'email': email, 'password': password,
+      'email': email,
+      'password': password,
     });
     return res.data;
   }
@@ -64,7 +70,7 @@ class ApiService {
     return res.data;
   }
 
-  // ── Issues ───────────────────────────────────────────────────────────────────
+  // ── Issues ────────────────────────────────────────────────────────────────
   Future<Map<String, dynamic>> createIssue(FormData formData) async {
     final res = await _dio.post(
       ApiConstants.issues,
@@ -76,7 +82,7 @@ class ApiService {
 
   Future<List<dynamic>> getIssues({String? status, String? category}) async {
     final params = <String, dynamic>{};
-    if (status != null) params['status'] = status;
+    if (status != null)   params['status']   = status;
     if (category != null) params['category'] = category;
     final res = await _dio.get(ApiConstants.issues, queryParameters: params);
     return res.data;
@@ -87,10 +93,33 @@ class ApiService {
     return res.data;
   }
 
-  Future<Map<String, dynamic>> resolveIssue(String id, String notes) async {
-    final res = await _dio.post('${ApiConstants.issues}/$id/resolve', data: {
+  /// Resolves an issue.
+  /// Sends multipart/form-data so before/after images and GPS can be
+  /// included alongside resolution_notes in a single request.
+  Future<Map<String, dynamic>> resolveIssue(
+    String id,
+    String notes, {
+    String? beforeImagePath,
+    String? afterImagePath,
+    double? latitude,
+    double? longitude,
+  }) async {
+    final fields = <String, dynamic>{
       'resolution_notes': notes,
-    });
+      if (latitude != null)       'latitude':     latitude,
+      if (longitude != null)      'longitude':    longitude,
+      if (beforeImagePath != null)
+        'before_image': await MultipartFile.fromFile(
+            beforeImagePath, filename: 'before.jpg'),
+      if (afterImagePath != null)
+        'after_image': await MultipartFile.fromFile(
+            afterImagePath, filename: 'after.jpg'),
+    };
+    final res = await _dio.post(
+      '${ApiConstants.issues}/$id/resolve',
+      data: FormData.fromMap(fields),
+      options: Options(contentType: 'multipart/form-data'),
+    );
     return res.data;
   }
 
@@ -125,7 +154,7 @@ class ApiService {
     return res.data;
   }
 
-  // ── Tasks ────────────────────────────────────────────────────────────────────
+  // ── Tasks ─────────────────────────────────────────────────────────────────
   Future<Map<String, dynamic>> createTask({
     required String issueId,
     required String assignedTo,
@@ -133,9 +162,9 @@ class ApiService {
     String? description,
   }) async {
     final res = await _dio.post(ApiConstants.tasks, data: {
-      'issue_id': issueId,
+      'issue_id':    issueId,
       'assigned_to': assignedTo,
-      'deadline': deadline.toIso8601String(),
+      'deadline':    deadline.toIso8601String(),
       if (description != null) 'description': description,
     });
     return res.data;
@@ -156,7 +185,7 @@ class ApiService {
     return res.data;
   }
 
-  // ── Dashboard ──────────────────────────────────────────────────────────────
+  // ── Dashboard ─────────────────────────────────────────────────────────────
   Future<Map<String, dynamic>> getLeaderDashboard() async {
     final res = await _dio.get(ApiConstants.leaderDashboard);
     return res.data;
@@ -176,16 +205,6 @@ class ApiService {
     final params = <String, dynamic>{};
     if (role != null) params['role'] = role;
     final res = await _dio.get(ApiConstants.users, queryParameters: params);
-    return res.data;
-  }
-
-  // ── Verifications ──────────────────────────────────────────────────────────
-  Future<Map<String, dynamic>> uploadVerification(FormData formData) async {
-    final res = await _dio.post(
-      ApiConstants.verifications,
-      data: formData,
-      options: Options(contentType: 'multipart/form-data'),
-    );
     return res.data;
   }
 }

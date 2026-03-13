@@ -12,7 +12,6 @@ import '../screens/citizen/issue_detail_screen.dart';
 import '../screens/leader/leader_dashboard_screen.dart';
 import '../screens/leader/issues_list_screen.dart';
 import '../screens/leader/task_management_screen.dart';
-import '../screens/leader/upload_verification_screen.dart';
 import '../screens/authority/authority_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -53,10 +52,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/leader', builder: (_, __) => const LeaderDashboardScreen()),
       GoRoute(path: '/leader/issues', builder: (_, __) => const LeaderIssuesListScreen()),
       GoRoute(path: '/leader/tasks', builder: (_, __) => const TaskManagementScreen()),
-      GoRoute(
-        path: '/leader/verify/:taskId',
-        builder: (_, state) => UploadVerificationScreen(taskId: state.pathParameters['taskId']!),
-      ),
 
       // Higher Authority
       GoRoute(path: '/authority', builder: (_, __) => const AuthorityScreen()),

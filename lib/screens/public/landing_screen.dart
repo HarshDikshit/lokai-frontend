@@ -59,7 +59,7 @@ class LandingScreen extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.location_city_rounded,
-                        size: 120,
+                        size: 80,
                         color: Colors.white.withOpacity(0.15),
                       ),
                       const SizedBox(height: 40),
@@ -67,7 +67,7 @@ class LandingScreen extends StatelessWidget {
                         'Your Voice,\nYour City,\nYour Change',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 38, fontWeight: FontWeight.w700,
+                          fontSize: 30, fontWeight: FontWeight.w700,
                           color: Colors.white, height: 1.15,
                         ),
                       ),
@@ -87,7 +87,7 @@ class LandingScreen extends StatelessWidget {
 
               // Feature chips
               Wrap(
-                spacing: 8, runSpacing: 8,
+                spacing: 10, runSpacing: 8, 
                 children: [
                   _featureChip(Icons.report_problem_outlined, 'Report Issues'),
                   _featureChip(Icons.track_changes, 'Track Status'),
