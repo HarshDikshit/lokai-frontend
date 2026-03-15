@@ -96,13 +96,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String email,
     required String password,
     required String role,
-    String? phone,                        // ← add
-    Map<String, String>? leaderLocation,  // ← add
+    String? phone,
+    Map<String, String>? leaderLocation,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final data = await _api.register(
-        name: name, email: email, password: password, role: role, phone: phone, leaderLocation: leaderLocation,
+        name: name,
+        email: email,
+        password: password,
+        role: role,
+        phone: phone,
+        leaderLocation: leaderLocation,
       );
       await _saveAuthData(data);
       state = state.copyWith(
@@ -123,6 +128,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> logout() async {
     await _storage.deleteAll();
     state = AuthState();
+  }
+
+  /// Call this when the user starts editing fields after a failed attempt
+  /// so the red error banner disappears immediately.
+  void clearError() {
+    if (state.error != null) state = state.copyWith(error: null);
   }
 
   Future<void> _saveAuthData(Map<String, dynamic> data) async {

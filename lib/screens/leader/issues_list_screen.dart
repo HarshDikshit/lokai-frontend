@@ -9,93 +9,14 @@ import 'package:geocoding/geocoding.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../core/app_theme.dart';
+import '../../core/app_constants.dart';
 import '../../models/models.dart';
 import '../../providers/issues_provider.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GPS + timestamp stamp utility
-// Paints two lines of text onto the raw image bytes and returns a new File.
-// ─────────────────────────────────────────────────────────────────────────────
-Future<File> _stampImage({
-  required File src,
-  required double lat,
-  required double lng,
-  required String address,
-  required DateTime capturedAt,
-}) async {
-  // Decode original image
-  final bytes  = await src.readAsBytes();
-  final codec  = await ui.instantiateImageCodec(bytes);
-  final frame  = await codec.getNextFrame();
-  final orig   = frame.image;
-
-  final w = orig.width.toDouble();
-  final h = orig.height.toDouble();
-
-  // Create recorder
-  final recorder = ui.PictureRecorder();
-  final canvas    = Canvas(recorder, Rect.fromLTWH(0, 0, w, h));
-
-  // Draw original image
-  canvas.drawImage(orig, Offset.zero, Paint());
-
-  // Stamp parameters
-  final fontSize   = (w * 0.028).clamp(18.0, 36.0);
-  final padding    = fontSize * 0.6;
-  final lineH      = fontSize * 1.4;
-  final stampH     = lineH * 3 + padding * 2;
-  final stampY     = h - stampH;
-
-  // Semi-transparent black bar at bottom
-  canvas.drawRect(
-    Rect.fromLTWH(0, stampY, w, stampH),
-    Paint()..color = const Color(0xCC000000),
-  );
-
-  // Text style helper
-  void drawLine(String text, double y, {Color color = Colors.white}) {
-    final tp = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(
-          color: color,
-          fontSize: fontSize,
-          fontWeight: FontWeight.w600,
-          shadows: const [Shadow(color: Colors.black, blurRadius: 2)],
-        ),
-      ),
-      textDirection: ui.TextDirection.ltr,
-    )..layout(maxWidth: w - padding * 2);
-    tp.paint(canvas, Offset(padding, y));
-  }
-
-  final dateStr = DateFormat('dd MMM yyyy  HH:mm:ss').format(capturedAt);
-  final latStr  = lat.toStringAsFixed(6);
-  final lngStr  = lng.toStringAsFixed(6);
-  final coordStr = 'GPS: $latStr, $lngStr';
-  final addrStr  = address.isNotEmpty ? address : coordStr;
-
-  drawLine(dateStr,  stampY + padding,             color: const Color(0xFFFFD54F)); // amber
-  drawLine(coordStr, stampY + padding + lineH,      color: Colors.white);
-  drawLine(addrStr,  stampY + padding + lineH * 2,  color: Colors.white70);
-
-  // End recording and convert to image
-  final picture  = recorder.endRecording();
-  final stamped  = await picture.toImage(orig.width, orig.height);
-  final pngBytes = await stamped.toByteData(format: ui.ImageByteFormat.png);
-
-  // Save to temp
-  final dir  = await getTemporaryDirectory();
-  final path = '${dir.path}/stamped_${DateTime.now().millisecondsSinceEpoch}.png';
-  final out  = File(path);
-  await out.writeAsBytes(pngBytes!.buffer.asUint8List());
-  return out;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// GPS helper — get position + address string
+// GPS helper
 // ─────────────────────────────────────────────────────────────────────────────
 Future<({double lat, double lng, String address})> _fetchGps() async {
   LocationPermission perm = await Geolocator.checkPermission();
@@ -111,7 +32,7 @@ Future<({double lat, double lng, String address})> _fetchGps() async {
     );
   } catch (_) {
     final last = await Geolocator.getLastKnownPosition();
-    if (last == null) throw 'Could not get location';
+    if (last == null) throw 'Could not get location — try again';
     pos = last;
   }
 
@@ -130,10 +51,73 @@ Future<({double lat, double lng, String address})> _fetchGps() async {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Before-photo state — per issue id, persists while the list is alive
+// GPS + timestamp stamp  (painted directly onto image pixels via dart:ui)
 // ─────────────────────────────────────────────────────────────────────────────
-// We keep it in a simple Map so the card can show a thumbnail and the
-// resolution sheet can read it.
+Future<File> _stampImage({
+  required File src,
+  required double lat,
+  required double lng,
+  required String address,
+  required DateTime capturedAt,
+}) async {
+  final bytes   = await src.readAsBytes();
+  final codec   = await ui.instantiateImageCodec(bytes);
+  final frame   = await codec.getNextFrame();
+  final orig    = frame.image;
+  final w       = orig.width.toDouble();
+  final h       = orig.height.toDouble();
+
+  final recorder = ui.PictureRecorder();
+  final canvas   = Canvas(recorder, Rect.fromLTWH(0, 0, w, h));
+  canvas.drawImage(orig, Offset.zero, Paint());
+
+  final fontSize = (w * 0.028).clamp(18.0, 38.0);
+  final padding  = fontSize * 0.6;
+  final lineH    = fontSize * 1.45;
+  final stampH   = lineH * 3 + padding * 2;
+  final stampY   = h - stampH;
+
+  canvas.drawRect(
+    Rect.fromLTWH(0, stampY, w, stampH),
+    Paint()..color = const Color(0xCC000000),
+  );
+
+  void drawLine(String text, double y, {Color color = Colors.white}) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: color, fontSize: fontSize, fontWeight: FontWeight.w600,
+          shadows: const [Shadow(color: Colors.black, blurRadius: 2)],
+        ),
+      ),
+      textDirection: ui.TextDirection.ltr,
+    )..layout(maxWidth: w - padding * 2);
+    tp.paint(canvas, Offset(padding, y));
+  }
+
+  final dateStr  = DateFormat('dd MMM yyyy  HH:mm:ss').format(capturedAt);
+  final coordStr = 'GPS: ${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}';
+  final addrStr  = address.isNotEmpty ? address : coordStr;
+
+  drawLine(dateStr,  stampY + padding,            color: const Color(0xFFFFD54F));
+  drawLine(coordStr, stampY + padding + lineH,     color: Colors.white);
+  drawLine(addrStr,  stampY + padding + lineH * 2, color: Colors.white70);
+
+  final picture  = recorder.endRecording();
+  final stamped  = await picture.toImage(orig.width, orig.height);
+  final pngBytes = await stamped.toByteData(format: ui.ImageByteFormat.png);
+
+  final dir  = await getTemporaryDirectory();
+  final path = '${dir.path}/stamped_${DateTime.now().millisecondsSinceEpoch}.png';
+  final out  = File(path);
+  await out.writeAsBytes(pngBytes!.buffer.asUint8List());
+  return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Before-photo in-memory store (per issue id, screen lifetime)
+// ─────────────────────────────────────────────────────────────────────────────
 final _beforePhotos = <String, File>{};
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -149,39 +133,30 @@ class LeaderIssuesListScreen extends ConsumerStatefulWidget {
 
 class _LeaderIssuesListScreenState
     extends ConsumerState<LeaderIssuesListScreen> {
-  bool _capturingBefore = false; // which issue is being captured
+  // Tracks which issueId is currently capturing a before photo
+  String? _capturingBeforeFor;
 
-  // ── Take before photo for a specific issue ──────────────────────────────
   Future<void> _captureBeforePhoto(Issue issue) async {
-    setState(() => _capturingBefore = true);
+    setState(() => _capturingBeforeFor = issue.id);
     try {
-      // GPS first
       final gps = await _fetchGps();
-
-      // Camera only
       final raw = await ImagePicker().pickImage(
         source: ImageSource.camera,
         imageQuality: 90,
         preferredCameraDevice: CameraDevice.rear,
       );
       if (raw == null) return;
-
-      // Stamp
       final stamped = await _stampImage(
         src: File(raw.path),
         lat: gps.lat, lng: gps.lng, address: gps.address,
         capturedAt: DateTime.now(),
       );
-
       setState(() => _beforePhotos[issue.id] = stamped);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Before photo error: $e'),
-        backgroundColor: AppColors.error,
-      ));
+      _snack('Before photo error: $e');
     } finally {
-      if (mounted) setState(() => _capturingBefore = false);
+      if (mounted) setState(() => _capturingBeforeFor = null);
     }
   }
 
@@ -194,12 +169,15 @@ class _LeaderIssuesListScreenState
         issue: issue,
         beforePhoto: _beforePhotos[issue.id],
         onSuccess: () {
-          _beforePhotos.remove(issue.id); // clear after successful submit
+          _beforePhotos.remove(issue.id);
           ref.invalidate(issuesProvider);
         },
       ),
     );
   }
+
+  void _snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: AppColors.error));
 
   @override
   Widget build(BuildContext context) {
@@ -228,36 +206,26 @@ class _LeaderIssuesListScreenState
           if (i == 2) context.go('/leader/tasks');
         },
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Dashboard'),
-          NavigationDestination(icon: Icon(Icons.list_alt_outlined),   label: 'Issues'),
-          NavigationDestination(icon: Icon(Icons.task_outlined),       label: 'Tasks'),
+          NavigationDestination(icon: Icon(Icons.dashboard_outlined),  label: 'Dashboard'),
+          NavigationDestination(icon: Icon(Icons.list_alt_outlined),    label: 'Issues'),
         ],
       ),
       body: issuesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Icon(Icons.cloud_off_rounded, size: 60, color: AppColors.textHint),
-            const SizedBox(height: 16),
-            Text('$e', style: const TextStyle(color: AppColors.textSecondary)),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () => ref.read(issuesProvider.notifier).fetchIssues(),
-              icon: const Icon(Icons.refresh_rounded, size: 18),
-              label: const Text('Retry'),
-            ),
-          ]),
+        error: (e, _) => _ErrorView(
+          message: '$e',
+          onRetry: () => ref.read(issuesProvider.notifier).fetchIssues(),
         ),
         data: (issues) {
           if (issues.isEmpty) return const _EmptyState();
 
-          final actionable = issues
-              .where((i) => i.status == 'OPEN' || i.status == 'RESOLVED_L1')
-              .toList();
-          final others = issues
-              .where((i) => i.status != 'OPEN' && i.status != 'RESOLVED_L1')
-              .toList();
-          final sorted = [...actionable, ...others];
+          // Sort: OPEN first (leader can act), then RESOLVED (awaiting feedback),
+          // then the rest (closed / escalated)
+          final open      = issues.where((i) => i.status == IssueStatus.open).toList();
+          final awaiting  = issues.where((i) => i.awaitingCitizenFeedback).toList();
+          final rest      = issues.where((i) =>
+              i.status != IssueStatus.open && !i.awaitingCitizenFeedback).toList();
+          final sorted    = [...open, ...awaiting, ...rest];
 
           return ListView.builder(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -267,7 +235,7 @@ class _LeaderIssuesListScreenState
               return _IssueCard(
                 issue: issue,
                 beforePhoto: _beforePhotos[issue.id],
-                capturingBefore: _capturingBefore,
+                capturingBefore: _capturingBeforeFor == issue.id,
                 onTap: () => context.go('/issue/${issue.id}'),
                 onCaptureBefore: () => _captureBeforePhoto(issue),
                 onResolve: () => _openResolutionSheet(issue),
@@ -302,9 +270,9 @@ class _IssueCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canResolve     = issue.status == 'OPEN' || issue.status == 'RESOLVED_L1';
+    final canResolve    = issue.leaderCanResolve;   // OPEN only
+    final isAwaiting    = issue.awaitingCitizenFeedback; // RESOLVED_L1 / L2
     final isSecondAttempt = issue.resolutionAttempts >= 1;
-    final hasBefore      = beforePhoto != null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -327,10 +295,10 @@ class _IssueCard extends StatelessWidget {
           ),
         ),
 
-        // Main content (tappable → detail)
+        // Tappable main content
         InkWell(
           onTap: onTap,
-          borderRadius: canResolve
+          borderRadius: (canResolve || isAwaiting)
               ? BorderRadius.zero
               : const BorderRadius.vertical(bottom: Radius.circular(16)),
           child: Padding(
@@ -338,8 +306,8 @@ class _IssueCard extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Expanded(child: Text(issue.title,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15,
-                        color: AppColors.textPrimary),
+                    style: const TextStyle(fontWeight: FontWeight.w700,
+                        fontSize: 15, color: AppColors.textPrimary),
                     maxLines: 2, overflow: TextOverflow.ellipsis)),
                 const SizedBox(width: 8),
                 StatusBadge(status: issue.status),
@@ -357,8 +325,9 @@ class _IssueCard extends StatelessWidget {
                     const Icon(Icons.location_on_outlined, size: 12,
                         color: AppColors.textHint),
                     const SizedBox(width: 3),
-                    Text(_locationText(issue.location!),
-                        style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
+                    Text(_locationLabel(issue.location!),
+                        style: const TextStyle(fontSize: 11,
+                            color: AppColors.textHint)),
                     const SizedBox(width: 8),
                   ]),
                 ResolutionTicks(
@@ -368,39 +337,38 @@ class _IssueCard extends StatelessWidget {
           ),
         ),
 
-        // ── Action bar (only for actionable issues) ──────────────────────
-        if (canResolve) ...[
+        // ── Action area ────────────────────────────────────────────────────
+        if (canResolve || isAwaiting) ...[
           const Divider(height: 1, color: AppColors.borderColor),
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-            child: Column(children: [
-
-              // Before photo strip
-              _BeforePhotoStrip(
-                photo: beforePhoto,
-                capturing: capturingBefore,
-                onCapture: onCaptureBefore,
-              ),
-              const SizedBox(height: 10),
-
-              // Resolve button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: onResolve,
-                  icon: const Icon(Icons.upload_rounded, size: 16),
-                  label: Text(isSecondAttempt
-                      ? 'Submit Final Resolution  ✔✔'
-                      : 'Submit Resolution  ✔'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isSecondAttempt
-                        ? AppColors.warning
-                        : AppColors.success,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-            ]),
+            child: canResolve
+                ? Column(children: [
+                    // Before photo strip (only when leader can still act)
+                    _BeforePhotoStrip(
+                      photo: beforePhoto,
+                      capturing: capturingBefore,
+                      onCapture: onCaptureBefore,
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: onResolve,
+                        icon: const Icon(Icons.upload_rounded, size: 16),
+                        label: Text(isSecondAttempt
+                            ? 'Submit Final Resolution  ✔✔'
+                            : 'Submit Resolution  ✔'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isSecondAttempt
+                              ? AppColors.warning
+                              : AppColors.success,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ])
+                : _AwaitingFeedbackBanner(attempts: issue.resolutionAttempts),
           ),
         ],
       ]),
@@ -413,43 +381,80 @@ class _IssueCard extends StatelessWidget {
       color: AppColors.primary.withOpacity(0.08),
       borderRadius: BorderRadius.circular(6),
     ),
-    child: Text(label,
-        style: const TextStyle(fontSize: 11, color: AppColors.primary,
-            fontWeight: FontWeight.w500)),
+    child: Text(label, style: const TextStyle(fontSize: 11,
+        color: AppColors.primary, fontWeight: FontWeight.w500)),
   );
 
-  String _locationText(Map<String, dynamic> loc) {
+  String _locationLabel(Map<String, dynamic> loc) {
     final parts = <String>[
-      if ((loc['town'] ?? '').toString().isNotEmpty) loc['town'],
-      if ((loc['city'] ?? '').toString().isNotEmpty) loc['city'],
+      if ((loc['town'] ?? '').toString().isNotEmpty)  loc['town']  as String,
+      if ((loc['city'] ?? '').toString().isNotEmpty)  loc['city']  as String,
     ];
-    return parts.isNotEmpty ? parts.join(', ') : '';
+    return parts.join(', ');
   }
 
   Color _statusColor(String s) {
     switch (s) {
-      case 'OPEN':        return AppColors.statusOpen;
-      case 'RESOLVED_L1': return AppColors.success;
-      case 'RESOLVED_L2': return AppColors.statusResolvedL2;
-      case 'ESCALATED':   return AppColors.statusEscalated;
-      case 'CLOSED':      return AppColors.statusClosed;
-      default:            return AppColors.borderColor;
+      case IssueStatus.open:       return AppColors.statusOpen;
+      case IssueStatus.resolvedL1: return AppColors.success;
+      case IssueStatus.resolvedL2: return AppColors.statusResolvedL2;
+      case IssueStatus.escalated:  return AppColors.statusEscalated;
+      case IssueStatus.closed:     return AppColors.statusClosed;
+      default:                     return AppColors.borderColor;
     }
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Before photo strip — shown on the card, separate from resolve sheet
+// "Awaiting citizen feedback" banner — replaces action buttons while locked
+// ─────────────────────────────────────────────────────────────────────────────
+class _AwaitingFeedbackBanner extends StatelessWidget {
+  final int attempts;
+  const _AwaitingFeedbackBanner({required this.attempts});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.info.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.info.withOpacity(0.3)),
+      ),
+      child: Row(children: [
+        const Icon(Icons.hourglass_top_rounded, size: 16, color: AppColors.info),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+          Text(
+            attempts == 1
+                ? 'Awaiting citizen feedback on Resolution ✔'
+                : 'Awaiting citizen feedback on Final Resolution ✔✔',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                color: AppColors.info),
+          ),
+          const SizedBox(height: 2),
+          const Text(
+            'You cannot submit another resolution until the citizen responds.',
+            style: TextStyle(fontSize: 11, color: AppColors.textSecondary,
+                height: 1.3),
+          ),
+        ])),
+      ]),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Before-photo strip on the card
 // ─────────────────────────────────────────────────────────────────────────────
 class _BeforePhotoStrip extends StatelessWidget {
   final File? photo;
   final bool capturing;
   final VoidCallback onCapture;
-
   const _BeforePhotoStrip({
-    required this.photo,
-    required this.capturing,
-    required this.onCapture,
+    required this.photo, required this.capturing, required this.onCapture,
   });
 
   @override
@@ -460,17 +465,14 @@ class _BeforePhotoStrip extends StatelessWidget {
         height: 56,
         decoration: BoxDecoration(
           color: photo != null
-              ? AppColors.info.withOpacity(0.06)
-              : AppColors.inputFill,
+              ? AppColors.info.withOpacity(0.06) : AppColors.inputFill,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: photo != null
-                ? AppColors.info.withOpacity(0.5)
-                : AppColors.borderColor,
+                ? AppColors.info.withOpacity(0.5) : AppColors.borderColor,
           ),
         ),
         child: Row(children: [
-          // Thumbnail or icon
           ClipRRect(
             borderRadius: const BorderRadius.horizontal(left: Radius.circular(11)),
             child: photo != null
@@ -478,9 +480,8 @@ class _BeforePhotoStrip extends StatelessWidget {
                 : Container(
                     width: 56, height: 56,
                     color: AppColors.info.withOpacity(0.08),
-                    child: Icon(Icons.camera_alt_outlined,
-                        size: 22,
-                        color: photo != null ? AppColors.info : AppColors.textHint),
+                    child: const Icon(Icons.camera_alt_outlined,
+                        size: 22, color: AppColors.textHint),
                   ),
           ),
           const SizedBox(width: 12),
@@ -497,20 +498,21 @@ class _BeforePhotoStrip extends StatelessWidget {
               ),
               Text(
                 photo != null
-                    ? 'GPS & timestamp stamped on image'
-                    : 'Optional · Camera only · GPS stamped',
+                    ? 'GPS & timestamp stamped'
+                    : 'Optional  ·  Camera only  ·  GPS stamped',
                 style: const TextStyle(fontSize: 11, color: AppColors.textHint),
               ),
             ],
           )),
-          // Right action
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: capturing
                 ? const SizedBox(width: 18, height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : Icon(
-                    photo != null ? Icons.refresh_rounded : Icons.camera_enhance_outlined,
+                    photo != null
+                        ? Icons.refresh_rounded
+                        : Icons.camera_enhance_outlined,
                     color: photo != null ? AppColors.info : AppColors.primary,
                     size: 22,
                   ),
@@ -522,17 +524,14 @@ class _BeforePhotoStrip extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Resolution bottom sheet — after photo + notes + GPS (no before here)
+// Resolution bottom sheet
 // ─────────────────────────────────────────────────────────────────────────────
 class _ResolutionSheet extends StatefulWidget {
   final Issue issue;
-  final File? beforePhoto;          // passed from card state
+  final File? beforePhoto;
   final VoidCallback onSuccess;
-
   const _ResolutionSheet({
-    required this.issue,
-    required this.beforePhoto,
-    required this.onSuccess,
+    required this.issue, required this.beforePhoto, required this.onSuccess,
   });
 
   @override
@@ -544,10 +543,10 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
 
   File?   _afterImage;
   double? _lat, _lng;
-  String  _address      = '';
-  bool    _gettingGps   = false;
-  bool    _takingPhoto  = false;
-  bool    _isSubmitting = false;
+  String  _address     = '';
+  bool    _gettingGps  = false;
+  bool    _takingPhoto = false;
+  bool    _submitting  = false;
 
   bool get _isFinal => widget.issue.resolutionAttempts >= 1;
 
@@ -557,25 +556,20 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
     super.dispose();
   }
 
-  // ── Capture after photo (camera only, GPS stamp) ────────────────────────
+  // ── Camera + stamp ────────────────────────────────────────────────────────
   Future<void> _captureAfterPhoto() async {
     setState(() => _takingPhoto = true);
     try {
-      // Ensure GPS ready first
-      if (_lat == null) await _getGps();
-
+      if (_lat == null) await _doGetGps();   // pre-fetch GPS so stamp is ready
       final raw = await ImagePicker().pickImage(
         source: ImageSource.camera,
         imageQuality: 90,
         preferredCameraDevice: CameraDevice.rear,
       );
       if (raw == null) return;
-
-      // Stamp with GPS + time
       final stamped = await _stampImage(
         src: File(raw.path),
-        lat: _lat ?? 0, lng: _lng ?? 0,
-        address: _address,
+        lat: _lat ?? 0, lng: _lng ?? 0, address: _address,
         capturedAt: DateTime.now(),
       );
       setState(() => _afterImage = stamped);
@@ -586,24 +580,21 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
     }
   }
 
-  // ── Get GPS ─────────────────────────────────────────────────────────────
-  Future<void> _getGps() async {
+  Future<void> _doGetGps() async {
     setState(() => _gettingGps = true);
     try {
       final gps = await _fetchGps();
-      setState(() {
-        _lat     = gps.lat;
-        _lng     = gps.lng;
-        _address = gps.address;
-      });
+      setState(() { _lat = gps.lat; _lng = gps.lng; _address = gps.address; });
     } catch (e) {
-      _snack('Location error: $e', error: true);
+      _snack('Location: $e', error: true);
     } finally {
       if (mounted) setState(() => _gettingGps = false);
     }
   }
 
-  // ── Submit ───────────────────────────────────────────────────────────────
+  // ── Two-step submit ───────────────────────────────────────────────────────
+  // 1. POST /verifications  (multipart — photos + GPS)
+  // 2. POST /issues/{id}/resolve  (JSON — resolution_notes)
   Future<void> _submit() async {
     if (_notesCtrl.text.trim().length < 5) {
       _snack('Describe what was done (min 5 chars)', error: true); return;
@@ -612,30 +603,37 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
       _snack('"After" photo is required', error: true); return;
     }
 
-    setState(() => _isSubmitting = true);
+    setState(() => _submitting = true);
     try {
+      // Step 1 — upload photos
+      await ApiService.instance.uploadVerification(
+        issueId:         widget.issue.id,
+        beforeImagePath: widget.beforePhoto?.path,
+        afterImagePath:  _afterImage!.path,
+        latitude:        _lat,
+        longitude:       _lng,
+      );
+
+      // Step 2 — mark resolved (plain JSON)
       await ApiService.instance.resolveIssue(
         widget.issue.id,
         _notesCtrl.text.trim(),
-        beforeImagePath: widget.beforePhoto?.path,
-        afterImagePath:  _afterImage!.path,
-        latitude:  _lat,
-        longitude: _lng,
       );
+
       if (!mounted) return;
       widget.onSuccess();
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(_isFinal
-            ? 'Final resolution submitted ✔✔ — awaiting citizen approval'
-            : 'Resolution submitted ✔ — awaiting citizen approval'),
+            ? 'Final resolution submitted ✔✔ — awaiting citizen feedback'
+            : 'Resolution submitted ✔ — awaiting citizen feedback'),
         backgroundColor: AppColors.success,
       ));
     } catch (e) {
       if (!mounted) return;
       _snack('Error: $e', error: true);
     } finally {
-      if (mounted) setState(() => _isSubmitting = false);
+      if (mounted) setState(() => _submitting = false);
     }
   }
 
@@ -645,6 +643,7 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
         backgroundColor: error ? AppColors.error : AppColors.success,
       ));
 
+  // ── Build ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final inset = MediaQuery.of(context).viewInsets.bottom;
@@ -657,7 +656,6 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
       padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + inset),
       child: SingleChildScrollView(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-
           // Handle
           const SizedBox(height: 10),
           Center(child: Container(width: 40, height: 4,
@@ -688,7 +686,8 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
                   style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800,
                       color: AppColors.textPrimary)),
               Text(widget.issue.title,
-                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  style: const TextStyle(fontSize: 12,
+                      color: AppColors.textSecondary),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
             ])),
           ]),
@@ -708,8 +707,8 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
                 Icon(Icons.info_outline, color: AppColors.warning, size: 16),
                 SizedBox(width: 8),
                 Expanded(child: Text(
-                  'Final attempt. Citizen rejection will escalate this issue '
-                  'and count as a failure on your record.',
+                  'Final attempt. If the citizen rejects this, '
+                  'the issue escalates to Higher Authority and counts as a failure.',
                   style: TextStyle(fontSize: 12, color: AppColors.warning,
                       height: 1.4),
                 )),
@@ -718,32 +717,31 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
           ],
           const SizedBox(height: 20),
 
-          // ── Before photo preview (read-only in sheet) ─────────────────
-          _sectionLabel('Before Photo', Icons.photo_camera_back_outlined,
-              required: false, note: 'Captured on issue card'),
+          // ── Before photo preview (read-only) ──────────────────────────
+          _label('Before Photo', Icons.photo_camera_back_outlined,
+              note: 'Captured on issue card · optional'),
           const SizedBox(height: 8),
-          _BeforePhotoPreview(photo: widget.beforePhoto),
+          _BeforePreview(photo: widget.beforePhoto),
           const SizedBox(height: 20),
 
           // ── After photo ───────────────────────────────────────────────
-          _sectionLabel('After Photo', Icons.add_photo_alternate_outlined,
+          _label('After Photo', Icons.add_photo_alternate_outlined,
               required: true, note: 'Camera only · GPS stamped'),
           const SizedBox(height: 8),
           _AfterPhotoTile(
             photo: _afterImage,
             taking: _takingPhoto,
-            hasGps: _lat != null,
             onTap: _captureAfterPhoto,
             onClear: () => setState(() => _afterImage = null),
           ),
           const SizedBox(height: 20),
 
-          // ── GPS tile (auto-filled when photo is taken, can also manual) ─
-          _sectionLabel('Location', Icons.location_on_outlined,
-              required: false, note: 'Auto-attached when photo is taken'),
+          // ── GPS ───────────────────────────────────────────────────────
+          _label('Location', Icons.location_on_outlined,
+              note: 'Auto-fetched when photo taken'),
           const SizedBox(height: 8),
           GestureDetector(
-            onTap: _gettingGps ? null : _getGps,
+            onTap: _gettingGps ? null : _doGetGps,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.all(14),
@@ -756,43 +754,45 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
               ),
               child: Row(children: [
                 Icon(Icons.location_on_outlined,
-                    color: _lat != null ? AppColors.success : AppColors.textSecondary),
+                    color: _lat != null
+                        ? AppColors.success : AppColors.textSecondary),
                 const SizedBox(width: 12),
                 Expanded(child: Text(
                   _lat != null
-                      ? '${_address.isNotEmpty ? _address : ''}'
-                        '\n${_lat!.toStringAsFixed(6)}, ${_lng!.toStringAsFixed(6)}'
-                      : 'Tap to attach location manually',
-                  style: TextStyle(fontSize: 12,
-                      color: _lat != null ? AppColors.success : AppColors.textSecondary,
-                      height: 1.4),
+                      ? '${_address.isNotEmpty ? "$_address\n" : ""}'
+                        '${_lat!.toStringAsFixed(6)}, ${_lng!.toStringAsFixed(6)}'
+                      : 'Tap to fetch location manually',
+                  style: TextStyle(fontSize: 12, height: 1.4,
+                      color: _lat != null
+                          ? AppColors.success : AppColors.textSecondary),
                 )),
                 if (_gettingGps)
                   const SizedBox(width: 18, height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2))
                 else if (_lat != null)
                   GestureDetector(
-                    onTap: () => setState(() { _lat = null; _lng = null; _address = ''; }),
-                    child: const Icon(Icons.close, size: 16, color: AppColors.textHint),
+                    onTap: () => setState(
+                        () { _lat = null; _lng = null; _address = ''; }),
+                    child: const Icon(Icons.close, size: 16,
+                        color: AppColors.textHint),
                   )
                 else
-                  const Icon(Icons.my_location, color: AppColors.primary, size: 18),
+                  const Icon(Icons.my_location,
+                      color: AppColors.primary, size: 18),
               ]),
             ),
           ),
           const SizedBox(height: 20),
 
-          // ── Resolution notes ──────────────────────────────────────────
-          _sectionLabel('Resolution Notes', Icons.description_outlined,
-              required: true),
+          // ── Resolution notes ───────────────────────────────────────────
+          _label('Resolution Notes', Icons.description_outlined, required: true),
           const SizedBox(height: 8),
           TextFormField(
             controller: _notesCtrl,
             maxLines: 4,
             decoration: const InputDecoration(
-              hintText:
-                  'Describe what was done to fix this issue…\n'
-                  'e.g. "Pothole filled with asphalt on 12 March"',
+              hintText: 'Describe what was done to fix this issue…\n'
+                        'e.g. "Pothole filled with asphalt on 12 March"',
               hintStyle: TextStyle(fontSize: 13),
               alignLabelWithHint: true,
             ),
@@ -803,22 +803,23 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: _isSubmitting ? null : _submit,
-              icon: _isSubmitting
+              onPressed: _submitting ? null : _submit,
+              icon: _submitting
                   ? const SizedBox(width: 18, height: 18,
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white))
                   : Icon(_isFinal ? Icons.send_rounded : Icons.check_rounded,
                       size: 18),
-              label: Text(_isSubmitting
-                  ? 'Submitting…'
+              label: Text(_submitting
+                  ? 'Uploading photos…'
                   : _isFinal
                       ? 'Submit Final Resolution  ✔✔'
                       : 'Submit Resolution  ✔'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _isFinal ? AppColors.warning : AppColors.success,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                textStyle: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w700),
               ),
             ),
           ),
@@ -828,46 +829,47 @@ class _ResolutionSheetState extends State<_ResolutionSheet> {
     );
   }
 
-  Widget _sectionLabel(String text, IconData icon,
+  Widget _label(String text, IconData icon,
       {bool required = false, String? note}) =>
       Row(children: [
         Icon(icon, size: 15, color: AppColors.primary),
         const SizedBox(width: 6),
-        Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary)),
+        Text(text, style: const TextStyle(fontSize: 13,
+            fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
         if (required)
-          const Text('  *', style: TextStyle(color: AppColors.error,
-              fontWeight: FontWeight.w700)),
+          const Text('  *', style: TextStyle(
+              color: AppColors.error, fontWeight: FontWeight.w700)),
         if (note != null) ...[
           const SizedBox(width: 6),
-          Flexible(child: Text(note,
-              style: const TextStyle(fontSize: 11, color: AppColors.textHint))),
+          Flexible(child: Text(note, style: const TextStyle(
+              fontSize: 11, color: AppColors.textHint))),
         ],
       ]);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Before photo preview inside sheet (read-only)
+// Before photo preview (read-only inside sheet)
 // ─────────────────────────────────────────────────────────────────────────────
-class _BeforePhotoPreview extends StatelessWidget {
+class _BeforePreview extends StatelessWidget {
   final File? photo;
-  const _BeforePhotoPreview({required this.photo});
+  const _BeforePreview({required this.photo});
 
   @override
   Widget build(BuildContext context) {
     if (photo == null) {
       return Container(
-        height: 52,
+        height: 48,
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: AppColors.inputFill,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.borderColor),
         ),
-        child: const Center(child: Text(
-          'No before photo — go back to card to capture one (optional)',
+        child: const Text(
+          'No before photo attached (optional — capture on issue card)',
           style: TextStyle(fontSize: 11, color: AppColors.textHint),
           textAlign: TextAlign.center,
-        )),
+        ),
       );
     }
     return Container(
@@ -880,18 +882,14 @@ class _BeforePhotoPreview extends StatelessWidget {
         borderRadius: BorderRadius.circular(11),
         child: Stack(fit: StackFit.expand, children: [
           Image.file(photo!, fit: BoxFit.cover),
-          Positioned(top: 6, left: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
+          Positioned(top: 6, left: 8, child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
                 color: AppColors.info,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text('BEFORE',
-                  style: TextStyle(color: Colors.white, fontSize: 10,
-                      fontWeight: FontWeight.w800, letterSpacing: 1)),
-            ),
-          ),
+                borderRadius: BorderRadius.circular(8)),
+            child: const Text('BEFORE', style: TextStyle(color: Colors.white,
+                fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
+          )),
         ]),
       ),
     );
@@ -899,21 +897,16 @@ class _BeforePhotoPreview extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// After photo tile inside sheet
+// After photo tile
 // ─────────────────────────────────────────────────────────────────────────────
 class _AfterPhotoTile extends StatelessWidget {
   final File? photo;
   final bool taking;
-  final bool hasGps;
   final VoidCallback onTap;
   final VoidCallback onClear;
-
   const _AfterPhotoTile({
-    required this.photo,
-    required this.taking,
-    required this.hasGps,
-    required this.onTap,
-    required this.onClear,
+    required this.photo, required this.taking,
+    required this.onTap, required this.onClear,
   });
 
   @override
@@ -934,29 +927,24 @@ class _AfterPhotoTile extends StatelessWidget {
               Container(decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter, end: Alignment.topCenter,
-                  colors: [Colors.black, Colors.transparent],
+                  colors: [Colors.black54, Colors.transparent],
                   stops: [0, 0.5],
                 ),
               )),
               Positioned(top: 6, left: 8, child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.success,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text('AFTER',
-                    style: TextStyle(color: Colors.white, fontSize: 10,
-                        fontWeight: FontWeight.w800, letterSpacing: 1)),
+                decoration: BoxDecoration(color: AppColors.success,
+                    borderRadius: BorderRadius.circular(8)),
+                child: const Text('AFTER', style: TextStyle(color: Colors.white,
+                    fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
               )),
-              Positioned(bottom: 10, left: 12,
-                child: Row(children: const [
-                  Icon(Icons.check_circle, color: Colors.white, size: 14),
-                  SizedBox(width: 5),
-                  Text('GPS + timestamp stamped',
-                      style: TextStyle(color: Colors.white, fontSize: 11,
-                          fontWeight: FontWeight.w600)),
-                ]),
-              ),
+              const Positioned(bottom: 10, left: 12, child: Row(children: [
+                Icon(Icons.check_circle, color: Colors.white, size: 14),
+                SizedBox(width: 5),
+                Text('GPS + timestamp stamped',
+                    style: TextStyle(color: Colors.white, fontSize: 11,
+                        fontWeight: FontWeight.w600)),
+              ])),
               Positioned(top: 6, right: 8, child: GestureDetector(
                 onTap: onClear,
                 child: Container(
@@ -972,7 +960,6 @@ class _AfterPhotoTile extends StatelessWidget {
       );
     }
 
-    // Empty state
     return GestureDetector(
       onTap: taking ? null : onTap,
       child: Container(
@@ -987,12 +974,14 @@ class _AfterPhotoTile extends StatelessWidget {
             const CircularProgressIndicator(),
             const SizedBox(height: 10),
             const Text('Getting GPS & opening camera…',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                style: TextStyle(fontSize: 12,
+                    color: AppColors.textSecondary)),
           ] else ...[
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.1), shape: BoxShape.circle,
+                color: AppColors.success.withOpacity(0.1),
+                shape: BoxShape.circle,
               ),
               child: const Icon(Icons.camera_enhance_outlined,
                   size: 28, color: AppColors.success),
@@ -1002,7 +991,7 @@ class _AfterPhotoTile extends StatelessWidget {
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
                     color: AppColors.success)),
             const SizedBox(height: 3),
-            const Text('Camera only · GPS & timestamp auto-stamped',
+            const Text('Camera only  ·  GPS & timestamp auto-stamped',
                 style: TextStyle(fontSize: 11, color: AppColors.textHint)),
           ],
         ]),
@@ -1012,6 +1001,31 @@ class _AfterPhotoTile extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+class _ErrorView extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _ErrorView({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.cloud_off_rounded, size: 60, color: AppColors.textHint),
+        const SizedBox(height: 16),
+        Text(message, style: const TextStyle(color: AppColors.textSecondary),
+            textAlign: TextAlign.center),
+        const SizedBox(height: 16),
+        ElevatedButton.icon(
+          onPressed: onRetry,
+          icon: const Icon(Icons.refresh_rounded, size: 18),
+          label: const Text('Retry'),
+        ),
+      ]),
+    ),
+  );
+}
+
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
   @override
@@ -1023,7 +1037,8 @@ class _EmptyState extends StatelessWidget {
           padding: const EdgeInsets.all(24),
           decoration: const BoxDecoration(
               color: AppColors.inputFill, shape: BoxShape.circle),
-          child: const Icon(Icons.inbox_outlined, size: 52, color: AppColors.textHint),
+          child: const Icon(Icons.inbox_outlined, size: 52,
+              color: AppColors.textHint),
         ),
         const SizedBox(height: 20),
         const Text('No issues assigned',

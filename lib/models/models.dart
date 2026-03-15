@@ -1,4 +1,4 @@
-// models/issue.dart
+// ── Issue ─────────────────────────────────────────────────────────────────────
 class Issue {
   final String id;
   final String title;
@@ -17,7 +17,7 @@ class Issue {
   final String? citizenName;
   final String? leaderName;
 
-  Issue({
+  const Issue({
     required this.id,
     required this.title,
     required this.description,
@@ -36,66 +36,48 @@ class Issue {
     this.leaderName,
   });
 
-  factory Issue.fromJson(Map<String, dynamic> json) {
-    return Issue(
-      id: json['id'] ?? '',
-      title: json['title'] ?? '',
-      description: json['description'] ?? '',
-      category: json['category'],
-      priorityScore: (json['priority_score'] as num?)?.toDouble(),
-      urgencyLevel: json['urgency_level'],
-      location: json['location'],
-      userId: json['user_id'] ?? '',
-      leaderId: json['leader_id'],
-      resolutionAttempts: json['resolution_attempts'] ?? 0,
-      status: json['status'] ?? 'OPEN',
-      imageUrls: List<String>.from(json['image_urls'] ?? []),
-      audioUrl: json['audio_url'],
-      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
-      citizenName: json['citizen_name'],
-      leaderName: json['leader_name'],
-    );
+  factory Issue.fromJson(Map<String, dynamic> json) => Issue(
+        id:                  json['id']          ?? '',
+        title:               json['title']        ?? '',
+        description:         json['description']  ?? '',
+        category:            json['category'],
+        priorityScore:       (json['priority_score'] as num?)?.toDouble(),
+        urgencyLevel:        json['urgency_level'],
+        location:            json['location'] != null
+                               ? Map<String, dynamic>.from(json['location'])
+                               : null,
+        userId:              json['user_id']    ?? '',
+        leaderId:            json['leader_id'],
+        resolutionAttempts:  json['resolution_attempts'] ?? 0,
+        status:              json['status']     ?? 'OPEN',
+        // Backend may return image_url (single str) or image_urls (list)
+        imageUrls:           _parseImageUrls(json),
+        audioUrl:            json['audio_url'],
+        createdAt:           DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+        citizenName:         json['citizen_name'],
+        leaderName:          json['leader_name'],
+      );
+
+  static List<String> _parseImageUrls(Map<String, dynamic> json) {
+    if (json['image_urls'] != null) {
+      return List<String>.from(json['image_urls']);
+    }
+    if (json['image_url'] != null) {
+      return [json['image_url'] as String];
+    }
+    return [];
   }
+
+  /// True when the issue is waiting for citizen feedback after a resolution.
+  /// Leader must NOT push another resolution while this is true.
+  bool get awaitingCitizenFeedback =>
+      status == 'RESOLVED_L1' || status == 'RESOLVED_L2';
+
+  /// True when the leader can act (submit a new resolution).
+  bool get leaderCanResolve => status == 'OPEN';
 }
 
-class Task {
-  final String id;
-  final String issueId;
-  final String assignedTo;
-  final DateTime deadline;
-  final String status;
-  final String? description;
-  final DateTime createdAt;
-  final String? issueTitle;
-  final String? assigneeName;
-
-  Task({
-    required this.id,
-    required this.issueId,
-    required this.assignedTo,
-    required this.deadline,
-    required this.status,
-    this.description,
-    required this.createdAt,
-    this.issueTitle,
-    this.assigneeName,
-  });
-
-  factory Task.fromJson(Map<String, dynamic> json) {
-    return Task(
-      id: json['id'] ?? '',
-      issueId: json['issue_id'] ?? '',
-      assignedTo: json['assigned_to'] ?? '',
-      deadline: DateTime.tryParse(json['deadline'] ?? '') ?? DateTime.now(),
-      status: json['status'] ?? 'pending',
-      description: json['description'],
-      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
-      issueTitle: json['issue_title'],
-      assigneeName: json['assignee_name'],
-    );
-  }
-}
-
+// ── User ──────────────────────────────────────────────────────────────────────
 class User {
   final String id;
   final String name;
@@ -103,7 +85,7 @@ class User {
   final String role;
   final int failedCases;
 
-  User({
+  const User({
     required this.id,
     required this.name,
     required this.email,
@@ -111,42 +93,36 @@ class User {
     required this.failedCases,
   });
 
-  factory User.fromJson(Map<String, dynamic> json) {
-    return User(
-      id: json['id'] ?? '',
-      name: json['name'] ?? '',
-      email: json['email'] ?? '',
-      role: json['role'] ?? '',
-      failedCases: json['failed_cases'] ?? 0,
-    );
-  }
+  factory User.fromJson(Map<String, dynamic> json) => User(
+        id:          json['id']           ?? '',
+        name:        json['name']         ?? '',
+        email:       json['email']        ?? '',
+        role:        json['role']         ?? '',
+        failedCases: json['failed_cases'] ?? 0,
+      );
 }
 
+// ── LeaderMetrics ─────────────────────────────────────────────────────────────
 class LeaderMetrics {
   final int totalIssues;
-  final int completedTasks;
-  final int pendingTasks;
+  final int closedIssues;
   final int escalatedCases;
   final int failedCases;
   final int activeProblems;
 
-  LeaderMetrics({
+  const LeaderMetrics({
     required this.totalIssues,
-    required this.completedTasks,
-    required this.pendingTasks,
+    required this.closedIssues,
     required this.escalatedCases,
     required this.failedCases,
     required this.activeProblems,
   });
 
-  factory LeaderMetrics.fromJson(Map<String, dynamic> json) {
-    return LeaderMetrics(
-      totalIssues: json['total_issues'] ?? 0,
-      completedTasks: json['completed_tasks'] ?? 0,
-      pendingTasks: json['pending_tasks'] ?? 0,
-      escalatedCases: json['escalated_cases'] ?? 0,
-      failedCases: json['failed_cases'] ?? 0,
-      activeProblems: json['active_problems'] ?? 0,
-    );
-  }
+  factory LeaderMetrics.fromJson(Map<String, dynamic> json) => LeaderMetrics(
+        totalIssues:    json['total_issues']    ?? 0,
+        closedIssues:   json['closed_issues']   ?? 0,
+        escalatedCases: json['escalated_cases'] ?? 0,
+        failedCases:    json['failed_cases']    ?? 0,
+        activeProblems: json['active_problems'] ?? 0,
+      );
 }

@@ -2,8 +2,9 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
 import '../models/models.dart';
+import '../core/app_constants.dart';
 
-// Issues list provider with polling
+// ── Issues list (with polling) ────────────────────────────────────────────────
 class IssuesNotifier extends StateNotifier<AsyncValue<List<Issue>>> {
   final _api = ApiService.instance;
   Timer? _pollingTimer;
@@ -16,15 +17,15 @@ class IssuesNotifier extends StateNotifier<AsyncValue<List<Issue>>> {
   }
 
   void setFilters({String? status, String? category}) {
-    _statusFilter = status;
+    _statusFilter  = status;
     _categoryFilter = category;
     fetchIssues();
   }
 
   Future<void> fetchIssues() async {
     try {
-      final data = await _api.getIssues(
-        status: _statusFilter,
+      final data   = await _api.getIssues(
+        status:   _statusFilter,
         category: _categoryFilter,
       );
       final issues = data.map((j) => Issue.fromJson(j)).toList();
@@ -36,7 +37,7 @@ class IssuesNotifier extends StateNotifier<AsyncValue<List<Issue>>> {
 
   void _startPolling() {
     _pollingTimer = Timer.periodic(
-      const Duration(seconds: 10),
+      const Duration(seconds: ApiConstants.pollingIntervalSeconds),
       (_) => fetchIssues(),
     );
   }
@@ -49,92 +50,54 @@ class IssuesNotifier extends StateNotifier<AsyncValue<List<Issue>>> {
 }
 
 final issuesProvider =
-    StateNotifierProvider<IssuesNotifier, AsyncValue<List<Issue>>>((ref) {
-  return IssuesNotifier();
-});
+    StateNotifierProvider<IssuesNotifier, AsyncValue<List<Issue>>>(
+        (ref) => IssuesNotifier());
 
-// Single issue provider
-final issueDetailProvider =
-    FutureProvider.family<Map<String, dynamic>, String>((ref, id) async {
-  return ApiService.instance.getIssue(id);
-});
-
-// Tasks provider with polling
-class TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
-  final _api = ApiService.instance;
-  Timer? _pollingTimer;
-
-  TasksNotifier() : super(const AsyncValue.loading()) {
-    fetchTasks();
-    _startPolling();
+// ── Single issue — StreamProvider so invalidate() immediately rebuilds UI ────
+// Using a StateNotifierProvider so the screen can manually trigger a refresh
+// AND the provider re-fetches properly on invalidate() without stale cache.
+class IssueDetailNotifier
+    extends StateNotifier<AsyncValue<Map<String, dynamic>>> {
+  final String issueId;
+  IssueDetailNotifier(this.issueId) : super(const AsyncValue.loading()) {
+    fetch();
   }
 
-  Future<void> fetchTasks({String? status}) async {
+  Future<void> fetch() async {
+    // Keep existing data visible while reloading (no flicker to loading spinner)
+    if (state is AsyncData) {
+      state = AsyncValue.data((state as AsyncData).value);
+    }
     try {
-      final data = await _api.getTasks(status: status);
-      final tasks = data.map((j) => Task.fromJson(j)).toList();
-      state = AsyncValue.data(tasks);
+      final data = await ApiService.instance.getIssue(issueId);
+      state = AsyncValue.data(data);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
   }
-
-  void _startPolling() {
-    _pollingTimer = Timer.periodic(
-      const Duration(seconds: 10),
-      (_) => fetchTasks(),
-    );
-  }
-
-  @override
-  void dispose() {
-    _pollingTimer?.cancel();
-    super.dispose();
-  }
 }
 
-final tasksProvider =
-    StateNotifierProvider<TasksNotifier, AsyncValue<List<Task>>>((ref) {
-  return TasksNotifier();
-});
+final issueDetailProvider = StateNotifierProvider.family<
+    IssueDetailNotifier, AsyncValue<Map<String, dynamic>>, String>(
+  (ref, id) => IssueDetailNotifier(id),
+);
 
-// Leader dashboard provider
-final leaderDashboardProvider = FutureProvider<Map<String, dynamic>>((ref) async {
-  return ApiService.instance.getLeaderDashboard();
-});
-
-// Citizen dashboard provider
-final citizenDashboardProvider = FutureProvider<Map<String, dynamic>>((ref) async {
-  return ApiService.instance.getCitizenDashboard();
-});
-
-// Admin dashboard provider
-final adminDashboardProvider = FutureProvider<Map<String, dynamic>>((ref) async {
-  return ApiService.instance.getAdminDashboard();
-});
-
-// Users provider
-final usersProvider = FutureProvider.family<List<User>, String?>((ref, role) async {
-  final data = await ApiService.instance.getUsers(role: role);
-  return data.map((j) => User.fromJson(j)).toList();
-});
-
-// Escalated issues provider
+// ── Escalated issues (higher authority view) ──────────────────────────────────
 class EscalatedIssuesNotifier extends StateNotifier<AsyncValue<List<Issue>>> {
   final _api = ApiService.instance;
   Timer? _pollingTimer;
 
   EscalatedIssuesNotifier() : super(const AsyncValue.loading()) {
-    fetchEscalated();
+    _fetch();
     _pollingTimer = Timer.periodic(
-      const Duration(seconds: 10),
-      (_) => fetchEscalated(),
+      const Duration(seconds: ApiConstants.pollingIntervalSeconds),
+      (_) => _fetch(),
     );
   }
 
-  Future<void> fetchEscalated() async {
+  Future<void> _fetch() async {
     try {
-      final data = await _api.getEscalatedIssues();
+      final data   = await _api.getEscalatedIssues();
       final issues = data.map((j) => Issue.fromJson(j)).toList();
       state = AsyncValue.data(issues);
     } catch (e, st) {
@@ -150,6 +113,21 @@ class EscalatedIssuesNotifier extends StateNotifier<AsyncValue<List<Issue>>> {
 }
 
 final escalatedIssuesProvider =
-    StateNotifierProvider<EscalatedIssuesNotifier, AsyncValue<List<Issue>>>((ref) {
-  return EscalatedIssuesNotifier();
+    StateNotifierProvider<EscalatedIssuesNotifier, AsyncValue<List<Issue>>>(
+        (ref) => EscalatedIssuesNotifier());
+
+// ── Dashboards ────────────────────────────────────────────────────────────────
+final leaderDashboardProvider = FutureProvider<Map<String, dynamic>>(
+    (ref) => ApiService.instance.getLeaderDashboard());
+
+final citizenDashboardProvider = FutureProvider<Map<String, dynamic>>(
+    (ref) => ApiService.instance.getCitizenDashboard());
+
+final adminDashboardProvider = FutureProvider<Map<String, dynamic>>(
+    (ref) => ApiService.instance.getAdminDashboard());
+
+// ── Users ─────────────────────────────────────────────────────────────────────
+final usersProvider = FutureProvider.family<List<User>, String?>((ref, role) async {
+  final data = await ApiService.instance.getUsers(role: role);
+  return data.map((j) => User.fromJson(j)).toList();
 });

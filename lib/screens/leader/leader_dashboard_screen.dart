@@ -46,7 +46,6 @@ class LeaderDashboardScreen extends ConsumerWidget {
         destinations: const [
           NavigationDestination(icon: Icon(Icons.dashboard_outlined),  label: 'Dashboard'),
           NavigationDestination(icon: Icon(Icons.list_alt_outlined),    label: 'Issues'),
-          NavigationDestination(icon: Icon(Icons.task_outlined),        label: 'Tasks'),
         ],
       ),
       body: dashAsync.when(

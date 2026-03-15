@@ -93,33 +93,56 @@ class ApiService {
     return res.data;
   }
 
-  /// Resolves an issue.
-  /// Sends multipart/form-data so before/after images and GPS can be
-  /// included alongside resolution_notes in a single request.
-  Future<Map<String, dynamic>> resolveIssue(
-    String id,
-    String notes, {
+  /// Step 1 of resolution — upload before/after photos to /verifications.
+  /// Backend stores them in Cloudinary and returns the image URLs.
+  /// Always call this BEFORE [resolveIssue] when photos are present.
+  Future<Map<String, dynamic>> uploadVerification({
+    required String issueId,
     String? beforeImagePath,
     String? afterImagePath,
     double? latitude,
     double? longitude,
   }) async {
     final fields = <String, dynamic>{
-      'resolution_notes': notes,
-      if (latitude != null)       'latitude':     latitude,
-      if (longitude != null)      'longitude':    longitude,
+      'issue_id': issueId,
+      if (latitude != null)  'latitude':  latitude,
+      if (longitude != null) 'longitude': longitude,
       if (beforeImagePath != null)
         'before_image': await MultipartFile.fromFile(
-            beforeImagePath, filename: 'before.jpg'),
+          beforeImagePath, filename: 'before.jpg',
+        ),
       if (afterImagePath != null)
         'after_image': await MultipartFile.fromFile(
-            afterImagePath, filename: 'after.jpg'),
+          afterImagePath, filename: 'after.jpg',
+        ),
     };
     final res = await _dio.post(
-      '${ApiConstants.issues}/$id/resolve',
+      ApiConstants.verifications,
       data: FormData.fromMap(fields),
-      options: Options(contentType: 'multipart/form-data'),
+      options: Options(
+        contentType: 'multipart/form-data',
+        sendTimeout:    const Duration(seconds: 60),
+        receiveTimeout: const Duration(seconds: 60),
+      ),
     );
+    return res.data as Map<String, dynamic>;
+  }
+
+  /// Step 2 of resolution — mark issue as resolved with plain JSON notes.
+  /// Backend updates status to RESOLVED_L1 / RESOLVED_L2.
+  Future<Map<String, dynamic>> resolveIssue(
+    String id,
+    String notes,
+  ) async {
+    final res = await _dio.post(
+      '${ApiConstants.issues}/$id/resolve',
+      data: {'resolution_notes': notes},
+    );
+    return res.data;
+  }
+
+  Future<Map<String, dynamic>> getVerification(String issueId) async {
+    final res = await _dio.get('${ApiConstants.verifications}/$issueId');
     return res.data;
   }
 
@@ -151,37 +174,6 @@ class ApiService {
 
   Future<List<dynamic>> getEscalatedIssues() async {
     final res = await _dio.get(ApiConstants.escalatedIssues);
-    return res.data;
-  }
-
-  // ── Tasks ─────────────────────────────────────────────────────────────────
-  Future<Map<String, dynamic>> createTask({
-    required String issueId,
-    required String assignedTo,
-    required DateTime deadline,
-    String? description,
-  }) async {
-    final res = await _dio.post(ApiConstants.tasks, data: {
-      'issue_id':    issueId,
-      'assigned_to': assignedTo,
-      'deadline':    deadline.toIso8601String(),
-      if (description != null) 'description': description,
-    });
-    return res.data;
-  }
-
-  Future<List<dynamic>> getTasks({String? status}) async {
-    final params = <String, dynamic>{};
-    if (status != null) params['status'] = status;
-    final res = await _dio.get(ApiConstants.tasks, queryParameters: params);
-    return res.data;
-  }
-
-  Future<Map<String, dynamic>> updateTask(
-    String id,
-    Map<String, dynamic> data,
-  ) async {
-    final res = await _dio.put('${ApiConstants.tasks}/$id', data: data);
     return res.data;
   }
 

@@ -12,9 +12,9 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
+  final _formKey  = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
-  final _passCtrl = TextEditingController();
+  final _passCtrl  = TextEditingController();
   bool _obscure = true;
 
   @override
@@ -26,17 +26,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
+
     final success = await ref.read(authProvider.notifier).login(
       _emailCtrl.text.trim(),
       _passCtrl.text,
     );
+
     if (!mounted) return;
+
+    // Only navigate on success — on failure the error is shown inline
     if (success) {
       final role = ref.read(authProvider).role;
       switch (role) {
-        case 'leader': context.go('/leader'); break;
+        case 'leader':           context.go('/leader');    break;
         case 'higher_authority': context.go('/authority'); break;
-        default: context.go('/citizen');
+        default:                 context.go('/citizen');
       }
     }
   }
@@ -53,7 +57,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Back button
               IconButton(
                 icon: const Icon(Icons.arrow_back_ios, color: AppColors.primary),
                 onPressed: () => context.go('/'),
@@ -77,94 +80,85 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 'Sign in to your LokAI account',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 15),
               ),
-
               const SizedBox(height: 40),
 
               // Form
               Form(
                 key: _formKey,
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _emailCtrl,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Email Address',
-                        prefixIcon: Icon(Icons.email_outlined),
-                      ),
-                      validator: (v) =>
-                          v == null || !v.contains('@') ? 'Enter valid email' : null,
+                child: Column(children: [
+                  TextFormField(
+                    controller: _emailCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    // Clear stale error when user edits
+                    onChanged: (_) => ref.read(authProvider.notifier).clearError(),
+                    decoration: const InputDecoration(
+                      labelText: 'Email Address',
+                      prefixIcon: Icon(Icons.email_outlined),
                     ),
+                    validator: (v) =>
+                        v == null || !v.contains('@') ? 'Enter valid email' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _passCtrl,
+                    obscureText: _obscure,
+                    onChanged: (_) => ref.read(authProvider.notifier).clearError(),
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () => setState(() => _obscure = !_obscure),
+                      ),
+                    ),
+                    validator: (v) =>
+                        v == null || v.length < 6 ? 'Min 6 characters' : null,
+                  ),
+
+                  // Inline error
+                  if (auth.error != null) ...[
                     const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passCtrl,
-                      obscureText: _obscure,
-                      decoration: InputDecoration(
-                        labelText: 'Password',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
-                          onPressed: () => setState(() => _obscure = !_obscure),
-                        ),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.errorLight,
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      validator: (v) =>
-                          v == null || v.length < 6 ? 'Min 6 characters' : null,
-                    ),
-                    if (auth.error != null) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.errorLight,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.error_outline, color: AppColors.error, size: 18),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                auth.error!,
-                                style: const TextStyle(color: AppColors.error, fontSize: 13),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 32),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: auth.isLoading ? null : _login,
-                        child: auth.isLoading
-                            ? const SizedBox(
-                                height: 20, width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Text('Sign In'),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text("Don't have an account? ",
-                            style: TextStyle(color: AppColors.textSecondary)),
-                        GestureDetector(
-                          onTap: () => context.go('/register'),
-                          child: const Text(
-                            'Register',
-                            style: TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
+                      child: Row(children: [
+                        const Icon(Icons.error_outline,
+                            color: AppColors.error, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(auth.error!,
+                            style: const TextStyle(
+                                color: AppColors.error, fontSize: 13))),
+                      ]),
                     ),
                   ],
-                ),
+
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: auth.isLoading ? null : _login,
+                      child: auth.isLoading
+                          ? const SizedBox(height: 20, width: 20,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                          : const Text('Sign In'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    const Text("Don't have an account? ",
+                        style: TextStyle(color: AppColors.textSecondary)),
+                    GestureDetector(
+                      onTap: () => context.go('/register'),
+                      child: const Text('Register',
+                          style: TextStyle(color: AppColors.primary,
+                              fontWeight: FontWeight.w600)),
+                    ),
+                  ]),
+                ]),
               ),
             ],
           ),
