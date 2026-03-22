@@ -31,21 +31,23 @@ dependencies:
   cached_network_image: ^3.3.1
   shimmer: ^3.0.0
 
-  # Media — removed record (buggy), using image_picker only
-  image_picker: ^1.1.2
-  file_picker: ^8.0.7
-
   # Location
   geolocator: ^12.0.0
-
+  geocoding: ^3.0.0
+  url_launcher: ^6.3.0
+  flutter_map: ^6.1.0
+  latlong2: 0.9.0
+  
   # Utils
   intl: ^0.19.0
   uuid: ^4.4.0
   permission_handler: ^11.3.0
+  path_provider: ^2.1.2
   
-  flutter_sound: ^9.2.13   # recording
-  geocoding: ^3.0.0         # reverse geocode → state/city/town
-  path_provider: ^2.1.2     # temp dir for audio file
+  # Media
+  image_picker: ^1.1.2
+  file_picker: ^8.0.7
+  flutter_sound: ^9.2.13
   speech_to_text: ^7.3.0
 
 

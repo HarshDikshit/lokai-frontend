@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http_parser/http_parser.dart';
 import '../core/app_constants.dart';
 
 class ApiService {
@@ -75,7 +76,6 @@ class ApiService {
     final res = await _dio.post(
       ApiConstants.issues,
       data: formData,
-      options: Options(contentType: 'multipart/form-data'),
     );
     return res.data;
   }
@@ -103,25 +103,40 @@ class ApiService {
     double? latitude,
     double? longitude,
   }) async {
-    final fields = <String, dynamic>{
-      'issue_id': issueId,
-      if (latitude != null)  'latitude':  latitude,
-      if (longitude != null) 'longitude': longitude,
-      if (beforeImagePath != null)
-        'before_image': await MultipartFile.fromFile(
-          beforeImagePath, filename: 'before.jpg',
+    final formData = FormData();
+    formData.fields.add(MapEntry('issue_id', issueId));
+    if (latitude != null) formData.fields.add(MapEntry('latitude', latitude.toString()));
+    if (longitude != null) formData.fields.add(MapEntry('longitude', longitude.toString()));
+
+    if (beforeImagePath != null) {
+      final ext = beforeImagePath.toLowerCase().endsWith('.png') ? 'png' : 'jpeg';
+      formData.files.add(MapEntry(
+        'before_image',
+        await MultipartFile.fromFile(
+          beforeImagePath,
+          filename: 'before.$ext',
+          contentType: MediaType('image', ext),
         ),
-      if (afterImagePath != null)
-        'after_image': await MultipartFile.fromFile(
-          afterImagePath, filename: 'after.jpg',
+      ));
+    }
+
+    if (afterImagePath != null) {
+      final ext = afterImagePath.toLowerCase().endsWith('.png') ? 'png' : 'jpeg';
+      formData.files.add(MapEntry(
+        'after_image',
+        await MultipartFile.fromFile(
+          afterImagePath,
+          filename: 'after.$ext',
+          contentType: MediaType('image', ext),
         ),
-    };
+      ));
+    }
+
     final res = await _dio.post(
       ApiConstants.verifications,
-      data: FormData.fromMap(fields),
+      data: formData,
       options: Options(
-        contentType: 'multipart/form-data',
-        sendTimeout:    const Duration(seconds: 60),
+        sendTimeout: const Duration(seconds: 60),
         receiveTimeout: const Duration(seconds: 60),
       ),
     );
@@ -183,6 +198,91 @@ class ApiService {
     return res.data;
   }
 
+  // ── Feed ─────────────────────────────────────────────────────────────────
+  Future<List<dynamic>> getFeed({int skip = 0, int limit = 20}) async {
+    final res = await _dio.get(ApiConstants.feed,
+        queryParameters: {'skip': skip, 'limit': limit});
+    return res.data;
+  }
+
+  Future<Map<String, dynamic>> createPost({
+    required String content,
+    String? imageUrl,
+    String? tag,
+  }) async {
+    final res = await _dio.post(ApiConstants.feed, data: {
+      'content': content,
+      if (imageUrl != null) 'image_url': imageUrl,
+      if (tag != null) 'tag': tag,
+    });
+    return res.data;
+  }
+
+  Future<Map<String, dynamic>> togglePostLike(String postId) async {
+    final res = await _dio.post('${ApiConstants.feed}/$postId/like');
+    return res.data;
+  }
+
+  Future<void> sharePost(String postId) async {
+    await _dio.post('${ApiConstants.feed}/$postId/share');
+  }
+
+  Future<Map<String, dynamic>> addComment(
+      String postId, String text, {String? parentId}) async {
+    final res = await _dio.post('${ApiConstants.feed}/$postId/comments', data: {
+      'text': text,
+      if (parentId != null) 'parent_id': parentId,
+    });
+    return res.data;
+  }
+
+  Future<Map<String, dynamic>> toggleCommentLike(
+      String postId, String commentId) async {
+    final res = await _dio.post(
+        '${ApiConstants.feed}/$postId/comments/$commentId/like');
+    return res.data;
+  }
+
+
+  // ── Duplicate / Cluster ───────────────────────────────────────────────────
+  Future<Map<String, dynamic>> getSimilarIssues({
+    required String description,
+    required double latitude,
+    required double longitude,
+    String? category,
+  }) async {
+    final res = await _dio.get('/issues/similar', queryParameters: {
+      'description': description,
+      'latitude':    latitude,
+      'longitude':   longitude,
+      if (category != null) 'category': category,
+    });
+    return res.data;
+  }
+
+  Future<Map<String, dynamic>> supportIssue(String issueId) async {
+    final res = await _dio.post('/issues/$issueId/support');
+    return res.data;
+  }
+
+  Future<List<dynamic>> getReviewQueue() async {
+    final res = await _dio.get('/issues/review/queue');
+    return (res.data['items'] as List?) ?? [];
+  }
+
+  Future<Map<String, dynamic>> decideReview(
+      String reviewId, String decision) async {
+    final res = await _dio.post(
+        '/issues/review/$reviewId/decide',
+        queryParameters: {'decision': decision});
+    return res.data;
+  }
+
+  Future<Map<String, dynamic>> getAuthorityDashboard() async {
+    final res = await _dio.get(ApiConstants.authorityDashboard);
+    return res.data;
+  }
+
   Future<Map<String, dynamic>> getAdminDashboard() async {
     final res = await _dio.get(ApiConstants.adminDashboard);
     return res.data;
@@ -197,6 +297,23 @@ class ApiService {
     final params = <String, dynamic>{};
     if (role != null) params['role'] = role;
     final res = await _dio.get(ApiConstants.users, queryParameters: params);
+    return res.data;
+  }
+
+  // ── Social Monitor ────────────────────────────────────────────────────────
+  Future<Map<String, dynamic>> getSocialMonitor() async {
+    final res = await _dio.get(ApiConstants.socialMonitor);
+    return res.data;
+  }
+
+  Future<Map<String, dynamic>> assignSocialPost({
+    required Map<String, dynamic> post,
+    required String leaderId,
+  }) async {
+    final res = await _dio.post(ApiConstants.socialAssign, data: {
+      'post': post,
+      'leader_id': leaderId,
+    });
     return res.data;
   }
 }

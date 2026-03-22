@@ -10,13 +10,17 @@ class CitizenHomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final auth = ref.watch(authProvider);
+    final auth      = ref.watch(authProvider);
     final dashboard = ref.watch(citizenDashboardProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('LokAI'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: () => ref.refresh(citizenDashboardProvider),
+          ),
           IconButton(
             icon: const Icon(Icons.logout_outlined),
             onPressed: () {
@@ -31,7 +35,8 @@ class CitizenHomeScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Welcome
+
+            // ── Welcome banner ───────────────────────────────────────────────
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -42,34 +47,26 @@ class CitizenHomeScreen extends ConsumerWidget {
                 ),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Hello, ${auth.userName ?? "Citizen"}!',
-                          style: const TextStyle(
-                            color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Your voice shapes your city',
-                          style: TextStyle(color: Colors.white70, fontSize: 13),
-                        ),
-                      ],
+              child: Row(children: [
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Hello, ${auth.userName ?? "Citizen"}!',
+                      style: const TextStyle(color: Colors.white,
+                          fontSize: 20, fontWeight: FontWeight.w700),
                     ),
-                  ),
-                  const Icon(Icons.location_city, color: Colors.white38, size: 48),
-                ],
-              ),
+                    const SizedBox(height: 4),
+                    const Text('Your voice shapes your city',
+                        style: TextStyle(color: Colors.white70, fontSize: 13)),
+                  ],
+                )),
+                const Icon(Icons.location_city, color: Colors.white38, size: 48),
+              ]),
             ),
-
             const SizedBox(height: 24),
 
-            // Dashboard stats
+            // ── Dashboard stats ──────────────────────────────────────────────
             dashboard.when(
               data: (data) => GridView.count(
                 shrinkWrap: true,
@@ -79,46 +76,50 @@ class CitizenHomeScreen extends ConsumerWidget {
                 crossAxisSpacing: 12,
                 childAspectRatio: 1.4,
                 children: [
-                  _StatCard('Total Issues', data['total_issues'] ?? 0, Icons.list_alt, AppColors.primary),
-                  _StatCard('Open', data['open_issues'] ?? 0, Icons.radio_button_checked, AppColors.info),
-                  _StatCard('Pending Verify', data['pending_verification'] ?? 0, Icons.pending_actions, AppColors.warning),
-                  _StatCard('Resolved', data['resolved_issues'] ?? 0, Icons.check_circle_outline, AppColors.success),
+                  _StatCard('Total Issues',    data['total_issues']        ?? 0, Icons.list_alt,            AppColors.primary),
+                  _StatCard('Open',            data['open_issues']         ?? 0, Icons.radio_button_checked, AppColors.info),
+                  _StatCard('Pending Verify',  data['pending_verification'] ?? 0, Icons.pending_actions,     AppColors.warning),
+                  _StatCard('Resolved',        data['resolved_issues']     ?? 0, Icons.check_circle_outline, AppColors.success),
                 ],
               ),
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => const SizedBox.shrink(),
+              error:   (_, __) => const SizedBox.shrink(),
             ),
-
             const SizedBox(height: 24),
 
-            // Quick actions
+            // ── Quick actions ────────────────────────────────────────────────
             Text('Quick Actions', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _ActionCard(
-                    icon: Icons.add_circle_outline,
-                    label: 'Report Issue',
-                    color: AppColors.primary,
-                    onTap: () => context.go('/citizen/submit'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _ActionCard(
-                    icon: Icons.track_changes,
-                    label: 'My Issues',
-                    color: AppColors.accent,
-                    onTap: () => context.go('/citizen/issues'),
-                  ),
-                ),
-              ],
-            ),
 
+            // Row 1: Report + My Issues
+            Row(children: [
+              Expanded(child: _ActionCard(
+                icon: Icons.add_circle_outline,
+                label: 'Report Issue',
+                color: AppColors.primary,
+                onTap: () => context.push('/citizen/submit'),
+              )),
+              const SizedBox(width: 12),
+              Expanded(child: _ActionCard(
+                icon: Icons.track_changes,
+                label: 'My Issues',
+                color: AppColors.accent,
+                onTap: () => context.push('/citizen/issues'),
+              )),
+            ]),
+            const SizedBox(height: 12),
+
+            // Row 2: Community Feed (full width)
+            _ActionCard(
+              icon: Icons.campaign_rounded,
+              label: 'Community Feed',
+              color: const Color(0xFF6A1B9A),
+              onTap: () => context.push('/feed'),
+              fullWidth: true,
+            ),
             const SizedBox(height: 24),
 
-            // Tips
+            // ── How it works ─────────────────────────────────────────────────
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -129,13 +130,12 @@ class CitizenHomeScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.lightbulb_outline, color: AppColors.info, size: 18),
-                      SizedBox(width: 8),
-                      Text('How it works', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.info)),
-                    ],
-                  ),
+                  const Row(children: [
+                    Icon(Icons.lightbulb_outline, color: AppColors.info, size: 18),
+                    SizedBox(width: 8),
+                    Text('How it works',
+                        style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.info)),
+                  ]),
                   const SizedBox(height: 12),
                   _tip('1', 'Report a civic issue with photos & location'),
                   _tip('2', 'AI prioritizes and assigns to your local leader'),
@@ -150,101 +150,101 @@ class CitizenHomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _tip(String num, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          Container(
-            width: 20, height: 20,
-            decoration: BoxDecoration(
-              color: AppColors.info,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Center(
-              child: Text(num, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary))),
-        ],
+  Widget _tip(String num, String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Row(children: [
+      Container(
+        width: 20, height: 20,
+        decoration: BoxDecoration(
+            color: AppColors.info, borderRadius: BorderRadius.circular(10)),
+        child: Center(child: Text(num,
+            style: const TextStyle(color: Colors.white,
+                fontSize: 11, fontWeight: FontWeight.w700))),
       ),
-    );
-  }
+      const SizedBox(width: 8),
+      Expanded(child: Text(text,
+          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary))),
+    ]),
+  );
 }
 
+// ─── Stat card ────────────────────────────────────────────────────────────────
 class _StatCard extends StatelessWidget {
   final String label;
-  final int value;
+  final int    value;
   final IconData icon;
-  final Color color;
-
+  final Color  color;
   const _StatCard(this.label, this.value, this.icon, this.color);
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Icon(icon, color: color, size: 22),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value.toString(),
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: color),
-              ),
-              Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: AppColors.borderColor),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Icon(icon, color: color, size: 22),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(value.toString(),
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: color)),
+          Text(label,
+              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        ]),
+      ],
+    ),
+  );
 }
 
+// ─── Action card ──────────────────────────────────────────────────────────────
 class _ActionCard extends StatelessWidget {
   final IconData icon;
-  final String label;
-  final Color color;
+  final String   label;
+  final Color    color;
   final VoidCallback onTap;
+  final bool     fullWidth;
 
   const _ActionCard({
-    required this.icon, required this.label,
-    required this.color, required this.onTap,
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+    this.fullWidth = false,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.2)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 32),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-          ],
-        ),
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      width: fullWidth ? double.infinity : null,
+      padding: EdgeInsets.symmetric(
+          vertical: fullWidth ? 16 : 20, horizontal: 20),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.2)),
       ),
-    );
-  }
+      child: fullWidth
+          ? Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(icon, color: color, size: 26),
+              const SizedBox(width: 12),
+              Text(label,
+                  style: TextStyle(color: color,
+                      fontWeight: FontWeight.w700, fontSize: 14)),
+              const SizedBox(width: 6),
+              Icon(Icons.arrow_forward_rounded, color: color.withOpacity(0.6), size: 16),
+            ])
+          : Column(children: [
+              Icon(icon, color: color, size: 32),
+              const SizedBox(height: 8),
+              Text(label, textAlign: TextAlign.center,
+                  style: TextStyle(color: color,
+                      fontWeight: FontWeight.w600, fontSize: 13)),
+            ]),
+    ),
+  );
 }

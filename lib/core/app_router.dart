@@ -1,3 +1,5 @@
+// core/router.dart
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,9 +11,12 @@ import '../screens/citizen/citizen_home_screen.dart';
 import '../screens/citizen/submit_issue_screen.dart';
 import '../screens/citizen/my_issues_screen.dart';
 import '../screens/citizen/issue_detail_screen.dart';
+import '../screens/citizen/location_picker_screen.dart';
 import '../screens/leader/leader_dashboard_screen.dart';
 import '../screens/leader/issues_list_screen.dart';
 import '../screens/authority/authority_screen.dart';
+import '../screens/authority/review_queue_screen.dart';
+import '../screens/citizen/community_feed_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
@@ -21,25 +26,17 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final isAuth = authState.isAuthenticated;
       final loc    = state.matchedLocation;
-
-      // 1. Not authenticated and trying to access a protected route → login
       if (!isAuth && !_isPublicRoute(loc)) return '/login';
-
-      // 2. Authenticated and on the landing page only → go to dashboard.
-      //    We do NOT redirect from /login or /register so that:
-      //    - Login/register screens can handle their own navigation after success.
-      //    - A failed attempt stays on the same screen showing the error.
       if (isAuth && loc == '/') return _homeForRole(authState.role);
-
       return null;
     },
     routes: [
-      // ── Public ──────────────────────────────────────────────────────────
+      // ── Public ────────────────────────────────────────────────────────
       GoRoute(path: '/',         builder: (_, __) => const LandingScreen()),
       GoRoute(path: '/login',    builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
 
-      // ── Citizen ──────────────────────────────────────────────────────────
+      // ── Citizen ───────────────────────────────────────────────────────
       GoRoute(path: '/citizen',        builder: (_, __) => const CitizenHomeScreen()),
       GoRoute(path: '/citizen/submit', builder: (_, __) => const SubmitIssueScreen()),
       GoRoute(path: '/citizen/issues', builder: (_, __) => const MyIssuesScreen()),
@@ -48,18 +45,22 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) =>
             IssueDetailScreen(issueId: state.pathParameters['id']!),
       ),
+      GoRoute(
+        path: '/citizen/location_picker',
+        builder: (_, __) => const LocationPickerScreen(),
+      ),
 
-      // ── Leader ───────────────────────────────────────────────────────────
+      // ── Leader ────────────────────────────────────────────────────────
       GoRoute(path: '/leader',        builder: (_, __) => const LeaderDashboardScreen()),
       GoRoute(path: '/leader/issues', builder: (_, __) => const LeaderIssuesListScreen()),
+      GoRoute(path: '/feed',          builder: (_, __) => const CommunityFeedScreen()),
 
-      // ── Higher Authority ─────────────────────────────────────────────────
-      GoRoute(path: '/authority', builder: (_, __) => const AuthorityScreen()),
+      // ── Higher Authority ──────────────────────────────────────────────
+      GoRoute(path: '/authority',              builder: (_, __) => const AuthorityScreen()),
+      GoRoute(path: '/authority/review-queue', builder: (_, __) => const ReviewQueueScreen()),
     ],
     errorBuilder: (context, state) => Scaffold(
-      body: Center(
-        child: Text('Page not found: ${state.matchedLocation}'),
-      ),
+      body: Center(child: Text('Page not found: ${state.matchedLocation}')),
     ),
   );
 });

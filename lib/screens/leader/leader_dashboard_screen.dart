@@ -41,11 +41,12 @@ class LeaderDashboardScreen extends ConsumerWidget {
         selectedIndex: 0,
         onDestinationSelected: (i) {
           if (i == 1) context.go('/leader/issues');
-          if (i == 2) context.go('/leader/tasks');
+          if (i == 2) context.go('/feed'); 
         },
         destinations: const [
           NavigationDestination(icon: Icon(Icons.dashboard_outlined),  label: 'Dashboard'),
           NavigationDestination(icon: Icon(Icons.list_alt_outlined),    label: 'Issues'),
+          NavigationDestination(icon: Icon(Icons.campaign_rounded),    label: 'Feed'),  // ← new
         ],
       ),
       body: dashAsync.when(

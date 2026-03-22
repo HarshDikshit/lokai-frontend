@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/issues_provider.dart';
@@ -263,8 +264,13 @@ class _IssueDetailScreenState extends ConsumerState<IssueDetailScreen> {
                 backgroundColor: AppColors.primary,
                 leading: IconButton(
                   icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () => context.go(
-                      auth.role == 'leader' ? '/leader/issues' : '/citizen/issues'),
+                  onPressed: () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go(auth.role == 'leader' ? '/leader/issues' : '/citizen/issues');
+                    }
+                  },
                 ),
                 actions: [
                   IconButton(
@@ -361,12 +367,30 @@ class _IssueDetailScreenState extends ConsumerState<IssueDetailScreen> {
                         _MetaRow(Icons.category_outlined, 'Category',
                             issue['category'] ?? 'AI analyzing…'),
                         const _HDivider(),
-                        _MetaRow(Icons.person_outline, 'Reported by',
-                            issue['citizen_name'] ?? 'You'),
+                        _MetaRow(
+                          Icons.person_outline,
+                          'Reported by',
+                          issue['citizen_name'] ?? 'You',
+                          trailing: (auth.role == 'leader' && (issue['citizen_phone'] != null || issue['phone'] != null || issue['citizen_name'] != null))
+                              ? IconButton(
+                                  icon: const Icon(Icons.call, size: 18, color: AppColors.success),
+                                  onPressed: () => launchUrl(Uri.parse('tel:${issue['citizen_phone'] ?? issue['phone'] ?? issue['citizen_name']}')),
+                                )
+                              : null,
+                        ),
                         if (issue['leader_name'] != null) ...[
                           const _HDivider(),
-                          _MetaRow(Icons.shield_outlined, 'Assigned Leader',
-                              issue['leader_name']),
+                          _MetaRow(
+                            Icons.shield_outlined,
+                            'Assigned Leader',
+                            issue['leader_name'],
+                            trailing: (auth.role == 'citizen' && (issue['leader_phone'] != null || issue['leaderPhone'] != null))
+                                ? IconButton(
+                                    icon: const Icon(Icons.call, size: 18, color: AppColors.success),
+                                    onPressed: () => launchUrl(Uri.parse('tel:${issue['leader_phone'] ?? issue['leaderPhone']}')),
+                                  )
+                                : null,
+                          ),
                         ],
                         const _HDivider(),
                         _MetaRow(Icons.calendar_today_outlined, 'Reported on',
@@ -1044,7 +1068,8 @@ class _MetaRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String? value;
-  const _MetaRow(this.icon, this.label, this.value);
+  final Widget? trailing;
+  const _MetaRow(this.icon, this.label, this.value, {this.trailing});
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 10),
@@ -1056,6 +1081,7 @@ class _MetaRow extends StatelessWidget {
       Expanded(child: Text(value ?? '—',
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
               color: AppColors.textPrimary))),
+      if (trailing != null) trailing!,
     ]),
   );
 }

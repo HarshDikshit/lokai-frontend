@@ -117,6 +117,9 @@ final escalatedIssuesProvider =
         (ref) => EscalatedIssuesNotifier());
 
 // ── Dashboards ────────────────────────────────────────────────────────────────
+final authorityDashboardProvider = FutureProvider<Map<String, dynamic>>(
+    (ref) => ApiService.instance.getAuthorityDashboard());
+
 final leaderDashboardProvider = FutureProvider<Map<String, dynamic>>(
     (ref) => ApiService.instance.getLeaderDashboard());
 
@@ -131,3 +134,36 @@ final usersProvider = FutureProvider.family<List<User>, String?>((ref, role) asy
   final data = await ApiService.instance.getUsers(role: role);
   return data.map((j) => User.fromJson(j)).toList();
 });
+
+
+// ── Feed provider ─────────────────────────────────────────────────────────────
+class FeedNotifier extends StateNotifier<AsyncValue<List<Map<String, dynamic>>>> {
+  FeedNotifier() : super(const AsyncValue.loading()) {
+    fetch();
+  }
+
+  Future<void> fetch() async {
+    try {
+      final data = await ApiService.instance.getFeed();
+      state = AsyncValue.data(List<Map<String, dynamic>>.from(
+          data.map((e) => Map<String, dynamic>.from(e))));
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+
+  void updatePost(Map<String, dynamic> updated) {
+    final current = state.valueOrNull ?? [];
+    state = AsyncValue.data(current.map((p) {
+      return p['id'] == updated['id'] ? updated : p;
+    }).toList());
+  }
+
+  void prependPost(Map<String, dynamic> post) {
+    final current = state.valueOrNull ?? [];
+    state = AsyncValue.data([post, ...current]);
+  }
+}
+
+final feedProvider = StateNotifierProvider<FeedNotifier,
+    AsyncValue<List<Map<String, dynamic>>>>((ref) => FeedNotifier());
