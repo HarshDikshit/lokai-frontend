@@ -40,6 +40,10 @@ class _SocialMonitorTabBodyState extends State<SocialMonitorTabBody> {
   }
 
   Future<void> _fetch() async {
+    // Add artificial delay so the user sees a "loading" state as requested, 
+    // even if returning cached data from ApiService.
+    await Future.delayed(const Duration(milliseconds: 1500));
+    
     try {
       final raw = await ApiService.instance.getSocialMonitor();
       if (!mounted) return;

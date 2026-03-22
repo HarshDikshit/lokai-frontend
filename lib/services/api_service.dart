@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http_parser/http_parser.dart';
@@ -302,7 +303,36 @@ class ApiService {
 
   // ── Social Monitor ────────────────────────────────────────────────────────
   Future<Map<String, dynamic>> getSocialMonitor() async {
+    // 1. Try to read from local cache first
+    try {
+      final cachedJson = await _storage.read(key: 'social_monitor_cache');
+      final cachedTime = await _storage.read(key: 'social_monitor_timestamp');
+
+      if (cachedJson != null && cachedTime != null) {
+        final timestamp = DateTime.tryParse(cachedTime);
+        if (timestamp != null) {
+          final diff = DateTime.now().difference(timestamp);
+          // If less than 12 hours old, return cached data
+          if (diff.inHours < 12) {
+            return jsonDecode(cachedJson) as Map<String, dynamic>;
+          }
+        }
+      }
+    } catch (_) {
+      // If cache reading fails, just proceed to fetch fresh
+    }
+
+    // 2. Fetch fresh data from backend
     final res = await _dio.get(ApiConstants.socialMonitor);
+
+    // 3. Save to persistent cache for 12 hours
+    try {
+      await _storage.write(key: 'social_monitor_cache', value: jsonEncode(res.data));
+      await _storage.write(key: 'social_monitor_timestamp', value: DateTime.now().toIso8601String());
+    } catch (_) {
+      // If cache writing fails, it's fine, we still return the fresh data
+    }
+
     return res.data;
   }
 
