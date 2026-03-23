@@ -1,4 +1,4 @@
-﻿// screens/authority/authority_screen.dart
+// screens/authority/authority_screen.dart
 // Consolidated view for Higher Authority.
 // Features: Escalated Issues list, Leader Performance metrics, and reassignment logic.
 // Removed: Review Queue and similarity-based pre-moderation.
@@ -13,6 +13,8 @@ import '../../providers/issues_provider.dart';
 import '../../models/models.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
+import '../../providers/social_monitor_provider.dart';
+
 
 class AuthorityScreen extends ConsumerStatefulWidget {
   const AuthorityScreen({super.key});
@@ -29,7 +31,7 @@ class _AuthorityScreenState extends ConsumerState<AuthorityScreen>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
+    _tabCtrl = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -169,6 +171,10 @@ class _AuthorityScreenState extends ConsumerState<AuthorityScreen>
               icon: Icon(Icons.leaderboard_rounded, size: 18),
               text: 'Leader Performance',
             ),
+            const Tab(
+              icon: Icon(Icons.hub_rounded, size: 18),
+              text: 'Social Monitor',
+            ),
           ],
         ),
       ),
@@ -216,6 +222,11 @@ class _AuthorityScreenState extends ConsumerState<AuthorityScreen>
               // Tab 1 — Leader Performance (unchanged)
               _LeaderPerformanceTab(
                 overview:    overview,
+                leaderStats: leaderStats,
+              ),
+
+              // Tab 2 — Social Monitor
+              _SocialMonitorTab(
                 leaderStats: leaderStats,
               ),
             ],
@@ -892,3 +903,402 @@ class _ReassignSheetState extends State<_ReassignSheet> {
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tab 3 — Social Monitor
+// ─────────────────────────────────────────────────────────────────────────────
+class _SocialMonitorTab extends ConsumerWidget {
+  final List<Map<String, dynamic>> leaderStats;
+  const _SocialMonitorTab({required this.leaderStats});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final socialAsync = ref.watch(socialMonitorProvider);
+
+    return socialAsync.when(
+      loading: () => const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Analyzing social patterns...',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ],
+        ),
+      ),
+      error: (e, _) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline_rounded,
+                size: 48, color: AppColors.error),
+            const SizedBox(height: 16),
+            Text('Error: $e', textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => ref.invalidate(socialMonitorProvider),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+      data: (res) => RefreshIndicator(
+        onRefresh: () async => ref.invalidate(socialMonitorProvider),
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.analytics_outlined,
+                          color: AppColors.primary),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Citizen Pulse',
+                              style: TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold)),
+                          Text('AI-detected social media insights',
+                              style: TextStyle(
+                                  fontSize: 12, color: AppColors.textSecondary)),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          Text('${res.totalPosts}',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold)),
+                          const Text('Total Posts',
+                              style:
+                                  TextStyle(color: Colors.white70, fontSize: 9)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Text('TRENDING CONCERNS',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textHint,
+                        letterSpacing: 1.2)),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 40,
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: res.trendingIssues.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (_, i) {
+                    final entry = res.trendingIssues.entries.elementAt(i);
+                    return _TrendingConcernChip(
+                        label: entry.key, count: entry.value);
+                  },
+                ),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (_, i) => _SocialPostCard(
+                    post: res.posts[i],
+                    leaderStats: leaderStats,
+                  ),
+                  childCount: res.posts.length,
+                ),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 32)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TrendingConcernChip extends StatelessWidget {
+  final String label;
+  final int count;
+  const _TrendingConcernChip({required this.label, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary)),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text('$count',
+                style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SocialPostCard extends StatefulWidget {
+  final SocialPost post;
+  final List<Map<String, dynamic>> leaderStats;
+  const _SocialPostCard({required this.post, required this.leaderStats});
+
+  @override
+  State<_SocialPostCard> createState() => _SocialPostCardState();
+}
+
+class _SocialPostCardState extends State<_SocialPostCard> {
+  bool _assigning = false;
+
+  Future<void> _assignLeader() async {
+    String? selectedId;
+    Map<String, dynamic>? selectedLeader;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ReassignSheet(
+        issueTitle: widget.post.title,
+        leaders: widget.leaderStats,
+        onConfirm: (id, leader) async {
+          selectedId = id;
+          selectedLeader = leader;
+        },
+      ),
+    );
+
+    if (selectedId == null) return;
+
+    setState(() => _assigning = true);
+    try {
+      await ApiService.instance.assignSocialPost(
+        post: {
+          'title': widget.post.title,
+          'summary': widget.post.summary,
+          'sentiment': widget.post.sentiment,
+          'issue_category': widget.post.issueCategory,
+        },
+        leaderId: selectedId!,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Assigned to ${selectedLeader?["name"]}'),
+        backgroundColor: AppColors.success,
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Error: $e'),
+        backgroundColor: AppColors.error,
+      ));
+    } finally {
+      if (mounted) setState(() => _assigning = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sentiment = widget.post.sentiment.toUpperCase();
+    final isNegative = sentiment == 'NEGATIVE';
+    final sentColor = isNegative ? AppColors.error : AppColors.success;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 4,
+            decoration: BoxDecoration(
+              color: sentColor,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.post.title,
+                        style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: sentColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: sentColor.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isNegative
+                                ? Icons.sentiment_very_dissatisfied
+                                : Icons.sentiment_very_satisfied,
+                            size: 14,
+                            color: sentColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            sentiment,
+                            style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: sentColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  widget.post.summary,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                      height: 1.5),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 16),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.tag, size: 14, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Text(
+                              widget.post.issueCategory,
+                              style: const TextStyle(
+                                  fontSize: 12, color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: _assigning ? null : _assignLeader,
+                        icon: _assigning
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.assignment_ind_rounded, size: 16),
+                        label: const Text('Assign Leader'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
