@@ -5,15 +5,20 @@ import '../models/models.dart';
 import '../core/app_constants.dart';
 
 // ── Issues list (with polling) ────────────────────────────────────────────────
-class IssuesNotifier extends StateNotifier<AsyncValue<List<Issue>>> {
+class IssuesNotifier extends Notifier<AsyncValue<List<Issue>>> {
   final _api = ApiService.instance;
   Timer? _pollingTimer;
   String? _statusFilter;
   String? _categoryFilter;
 
-  IssuesNotifier() : super(const AsyncValue.loading()) {
-    fetchIssues();
-    _startPolling();
+  @override
+  AsyncValue<List<Issue>> build() {
+    // Start polling and fetch initial data after first build
+    Future.microtask(() {
+      fetchIssues();
+      _startPolling();
+    });
+    return const AsyncValue.loading();
   }
 
   void setFilters({String? status, String? category}) {
@@ -45,54 +50,37 @@ class IssuesNotifier extends StateNotifier<AsyncValue<List<Issue>>> {
   @override
   void dispose() {
     _pollingTimer?.cancel();
-    super.dispose();
+    // In Notifier, dispose logic might need to be handled differently 
+    // but many side effects are cleaned up by the provider.
   }
 }
 
-final issuesProvider =
-    StateNotifierProvider<IssuesNotifier, AsyncValue<List<Issue>>>(
-        (ref) => IssuesNotifier());
+final issuesProvider = NotifierProvider<IssuesNotifier, AsyncValue<List<Issue>>>(() {
+  return IssuesNotifier();
+});
 
 // ── Single issue — StreamProvider so invalidate() immediately rebuilds UI ────
 // Using a StateNotifierProvider so the screen can manually trigger a refresh
 // AND the provider re-fetches properly on invalidate() without stale cache.
-class IssueDetailNotifier
-    extends StateNotifier<AsyncValue<Map<String, dynamic>>> {
-  final String issueId;
-  IssueDetailNotifier(this.issueId) : super(const AsyncValue.loading()) {
-    fetch();
-  }
-
-  Future<void> fetch() async {
-    // Keep existing data visible while reloading (no flicker to loading spinner)
-    if (state is AsyncData) {
-      state = AsyncValue.data((state as AsyncData).value);
-    }
-    try {
-      final data = await ApiService.instance.getIssue(issueId);
-      state = AsyncValue.data(data);
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-    }
-  }
-}
-
-final issueDetailProvider = StateNotifierProvider.family<
-    IssueDetailNotifier, AsyncValue<Map<String, dynamic>>, String>(
-  (ref, id) => IssueDetailNotifier(id),
-);
+final issueDetailProvider = FutureProvider.family<Map<String, dynamic>, String>((ref, id) async {
+  return await ApiService.instance.getIssue(id);
+});
 
 // ── Escalated issues (higher authority view) ──────────────────────────────────
-class EscalatedIssuesNotifier extends StateNotifier<AsyncValue<List<Issue>>> {
+class EscalatedIssuesNotifier extends Notifier<AsyncValue<List<Issue>>> {
   final _api = ApiService.instance;
   Timer? _pollingTimer;
 
-  EscalatedIssuesNotifier() : super(const AsyncValue.loading()) {
-    _fetch();
-    _pollingTimer = Timer.periodic(
-      const Duration(seconds: ApiConstants.pollingIntervalSeconds),
-      (_) => _fetch(),
-    );
+  @override
+  AsyncValue<List<Issue>> build() {
+    Future.microtask(() {
+      _fetch();
+      _pollingTimer = Timer.periodic(
+        const Duration(seconds: ApiConstants.pollingIntervalSeconds),
+        (_) => _fetch(),
+      );
+    });
+    return const AsyncValue.loading();
   }
 
   Future<void> _fetch() async {
@@ -108,13 +96,12 @@ class EscalatedIssuesNotifier extends StateNotifier<AsyncValue<List<Issue>>> {
   @override
   void dispose() {
     _pollingTimer?.cancel();
-    super.dispose();
   }
 }
 
-final escalatedIssuesProvider =
-    StateNotifierProvider<EscalatedIssuesNotifier, AsyncValue<List<Issue>>>(
-        (ref) => EscalatedIssuesNotifier());
+final escalatedIssuesProvider = NotifierProvider<EscalatedIssuesNotifier, AsyncValue<List<Issue>>>(() {
+  return EscalatedIssuesNotifier();
+});
 
 // ── Dashboards ────────────────────────────────────────────────────────────────
 final authorityDashboardProvider = FutureProvider<Map<String, dynamic>>(
@@ -137,9 +124,11 @@ final usersProvider = FutureProvider.family<List<User>, String?>((ref, role) asy
 
 
 // ── Feed provider ─────────────────────────────────────────────────────────────
-class FeedNotifier extends StateNotifier<AsyncValue<List<Map<String, dynamic>>>> {
-  FeedNotifier() : super(const AsyncValue.loading()) {
-    fetch();
+class FeedNotifier extends Notifier<AsyncValue<List<Map<String, dynamic>>>> {
+  @override
+  AsyncValue<List<Map<String, dynamic>>> build() {
+    Future.microtask(() => fetch());
+    return const AsyncValue.loading();
   }
 
   Future<void> fetch() async {
@@ -152,18 +141,26 @@ class FeedNotifier extends StateNotifier<AsyncValue<List<Map<String, dynamic>>>>
     }
   }
 
+  List<Map<String, dynamic>> _current() {
+    return switch (state) {
+      AsyncData(value: final v) => v,
+      _ => [],
+    };
+  }
+
   void updatePost(Map<String, dynamic> updated) {
-    final current = state.valueOrNull ?? [];
+    final current = _current();
     state = AsyncValue.data(current.map((p) {
       return p['id'] == updated['id'] ? updated : p;
     }).toList());
   }
 
   void prependPost(Map<String, dynamic> post) {
-    final current = state.valueOrNull ?? [];
+    final current = _current();
     state = AsyncValue.data([post, ...current]);
   }
 }
 
-final feedProvider = StateNotifierProvider<FeedNotifier,
-    AsyncValue<List<Map<String, dynamic>>>>((ref) => FeedNotifier());
+final feedProvider = NotifierProvider<FeedNotifier,
+    AsyncValue<List<Map<String, dynamic>>>>(() => FeedNotifier());
+

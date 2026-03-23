@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/issues_provider.dart';
+import '../../core/localization.dart';
 
 class CitizenHomeScreen extends ConsumerWidget {
   const CitizenHomeScreen({super.key});
@@ -15,14 +16,25 @@ class CitizenHomeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('LokAI'),
+        title: Text(context.translate('app_title')),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
+            tooltip: context.translate('refresh'),
             onPressed: () => ref.refresh(citizenDashboardProvider),
           ),
           IconButton(
+            onPressed: () {
+              final currentLocale = ref.read(localeProvider);
+              ref.read(localeProvider.notifier).setLocale(currentLocale.languageCode == 'en' 
+                      ? const Locale('hi') 
+                      : const Locale('en'));
+            },
+            icon: const Icon(Icons.language),
+          ),
+          IconButton(
             icon: const Icon(Icons.logout_outlined),
+            tooltip: context.translate('logout'),
             onPressed: () {
               ref.read(authProvider.notifier).logout();
               context.go('/');
@@ -52,13 +64,13 @@ class CitizenHomeScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Hello, ${auth.userName ?? "Citizen"}!',
+                      context.translate('hello_user').replaceAll('{name}', auth.userName ?? "Citizen"),
                       style: const TextStyle(color: Colors.white,
                           fontSize: 20, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 4),
-                    const Text('Your voice shapes your city',
-                        style: TextStyle(color: Colors.white70, fontSize: 13)),
+                    Text(context.translate('voice_shapes_city'),
+                        style: const TextStyle(color: Colors.white70, fontSize: 13)),
                   ],
                 )),
                 const Icon(Icons.location_city, color: Colors.white38, size: 48),
@@ -76,10 +88,10 @@ class CitizenHomeScreen extends ConsumerWidget {
                 crossAxisSpacing: 12,
                 childAspectRatio: 1.4,
                 children: [
-                  _StatCard('Total Issues',    data['total_issues']        ?? 0, Icons.list_alt,            AppColors.primary),
-                  _StatCard('Open',            data['open_issues']         ?? 0, Icons.radio_button_checked, AppColors.info),
-                  _StatCard('Pending Verify',  data['pending_verification'] ?? 0, Icons.pending_actions,     AppColors.warning),
-                  _StatCard('Resolved',        data['resolved_issues']     ?? 0, Icons.check_circle_outline, AppColors.success),
+                   _StatCard(context.translate('total_issues'),    data['total_issues']        ?? 0, Icons.list_alt,            AppColors.primary),
+                  _StatCard(context.translate('open'),            data['open_issues']         ?? 0, Icons.radio_button_checked, AppColors.info),
+                  _StatCard(context.translate('pending_verify'),  data['pending_verification'] ?? 0, Icons.pending_actions,     AppColors.warning),
+                  _StatCard(context.translate('resolved'),        data['resolved_issues']     ?? 0, Icons.check_circle_outline, AppColors.success),
                 ],
               ),
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -88,21 +100,21 @@ class CitizenHomeScreen extends ConsumerWidget {
             const SizedBox(height: 24),
 
             // ── Quick actions ────────────────────────────────────────────────
-            Text('Quick Actions', style: Theme.of(context).textTheme.headlineSmall),
+            Text(context.translate('quick_actions'), style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 16),
 
             // Row 1: Report + My Issues
             Row(children: [
               Expanded(child: _ActionCard(
                 icon: Icons.add_circle_outline,
-                label: 'Report Issue',
+                label: context.translate('report_issue'),
                 color: AppColors.primary,
                 onTap: () => context.push('/citizen/submit'),
               )),
               const SizedBox(width: 12),
               Expanded(child: _ActionCard(
                 icon: Icons.track_changes,
-                label: 'My Issues',
+                label: context.translate('my_issues'),
                 color: AppColors.accent,
                 onTap: () => context.push('/citizen/issues'),
               )),
@@ -112,7 +124,7 @@ class CitizenHomeScreen extends ConsumerWidget {
             // Row 2: Community Feed (full width)
             _ActionCard(
               icon: Icons.campaign_rounded,
-              label: 'Community Feed',
+              label: context.translate('community_feed'),
               color: const Color(0xFF6A1B9A),
               onTap: () => context.push('/feed'),
               fullWidth: true,
@@ -130,22 +142,29 @@ class CitizenHomeScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(children: [
-                    Icon(Icons.lightbulb_outline, color: AppColors.info, size: 18),
-                    SizedBox(width: 8),
-                    Text('How it works',
-                        style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.info)),
+                  Row(children: [
+                    const Icon(Icons.lightbulb_outline, color: AppColors.info, size: 18),
+                    const SizedBox(width: 8),
+                    Text(context.translate('how_it_works'),
+                        style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.info)),
                   ]),
                   const SizedBox(height: 12),
-                  _tip('1', 'Report a civic issue with photos & location'),
-                  _tip('2', 'AI prioritizes and assigns to your local leader'),
-                  _tip('3', 'Leader resolves – you verify and approve'),
-                  _tip('4', 'Unresolved issues escalate to Higher Authority'),
+                  _tip('1', context.translate('tip1')),
+                  _tip('2', context.translate('tip2')),
+                  _tip('3', context.translate('tip3')),
+                  _tip('4', context.translate('tip4')),
                 ],
               ),
             ),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.pushNamed('chatbot'),
+        backgroundColor: AppColors.primary,
+        icon: const Icon(Icons.auto_awesome, color: Colors.white),
+        label: Text(context.translate('chatbot_title'),
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
       ),
     );
   }

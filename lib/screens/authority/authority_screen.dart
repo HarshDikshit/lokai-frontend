@@ -1,11 +1,8 @@
-// screens/authority/authority_screen.dart
-// Adds "Review Queue" as Tab 3 (with live count badge) to the existing
-// Escalated Issues + Leader Performance tabs.
-// All existing tab logic, reassign sheet, leader cards, overview bar
-// is preserved exactly. New: _reviewCount badge + ReviewQueueTabBody tab.
+﻿// screens/authority/authority_screen.dart
+// Consolidated view for Higher Authority.
+// Features: Escalated Issues list, Leader Performance metrics, and reassignment logic.
+// Removed: Review Queue and similarity-based pre-moderation.
 
-import 'review_queue_screen.dart';
-import 'social_monitor_tab.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -28,15 +25,11 @@ class _AuthorityScreenState extends ConsumerState<AuthorityScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
   bool _actionLoading = false;
-  // ── NEW: review queue badge count ────────────────────────────────────────
-  int  _reviewCount   = 0;
 
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 4, vsync: this);
-    // Fetch review count once on open so the badge is populated immediately
-    _fetchReviewCount();
+    _tabCtrl = TabController(length: 2, vsync: this);
   }
 
   @override
@@ -45,13 +38,6 @@ class _AuthorityScreenState extends ConsumerState<AuthorityScreen>
     super.dispose();
   }
 
-  // ── NEW: lightweight review count fetch ───────────────────────────────────
-  Future<void> _fetchReviewCount() async {
-    try {
-      final items = await ApiService.instance.getReviewQueue();
-      if (mounted) setState(() => _reviewCount = items.length);
-    } catch (_) {}
-  }
 
   // ── Actions ───────────────────────────────────────────────────────────────
   Future<void> _closeIssue(String issueId, String title) async {
@@ -95,38 +81,6 @@ class _AuthorityScreenState extends ConsumerState<AuthorityScreen>
     );
   }
 
-  Future<void> _handleSocialAssign(SocialPost post, List<Map<String, dynamic>> leaders) async {
-    String? selectedId;
-    Map<String, dynamic>? selectedLeader;
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _ReassignSheet(
-        issueTitle: post.title,
-        leaders:    leaders,
-        onConfirm:  (id, leader) async {
-          selectedId     = id;
-          selectedLeader = leader;
-        },
-      ),
-    );
-
-    if (selectedId == null) return;
-    await _doAction(
-      () => ApiService.instance.assignSocialPost(
-        post: {
-          'title':          post.title,
-          'summary':        post.summary,
-          'sentiment':      post.sentiment,
-          'issue_category': post.issueCategory,
-        },
-        leaderId: selectedId!,
-      ),
-      'Report assigned to ${selectedLeader?["name"] ?? "leader"}',
-    );
-  }
 
   Future<void> _doAction(
       Future<dynamic> Function() call, String successMsg) async {
@@ -190,7 +144,6 @@ class _AuthorityScreenState extends ConsumerState<AuthorityScreen>
             onPressed: () {
               ref.invalidate(authorityDashboardProvider);
               ref.invalidate(escalatedIssuesProvider);
-              _fetchReviewCount();   // ← also refresh badge
             },
           ),
           IconButton(
@@ -215,33 +168,6 @@ class _AuthorityScreenState extends ConsumerState<AuthorityScreen>
             const Tab(
               icon: Icon(Icons.leaderboard_rounded, size: 18),
               text: 'Leader Performance',
-            ),
-            // ── NEW: Review Queue tab with live badge ──────────────────
-            Tab(
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.rule_folder_rounded, size: 18),
-                const SizedBox(width: 6),
-                const Text('Review Queue'),
-                if (_reviewCount > 0) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color:        Colors.orange,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text('$_reviewCount',
-                        style: const TextStyle(fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white)),
-                  ),
-                ],
-              ]),
-            ),
-            const Tab(
-              icon: Icon(Icons.hub_rounded, size: 18),
-              text: 'Social Monitor',
             ),
           ],
         ),
@@ -291,21 +217,6 @@ class _AuthorityScreenState extends ConsumerState<AuthorityScreen>
               _LeaderPerformanceTab(
                 overview:    overview,
                 leaderStats: leaderStats,
-              ),
-
-              // Tab 2 — Review Queue (NEW)
-              // ReviewQueueTabBody polls internally every 60s and
-              // calls back _fetchReviewCount to update the tab badge.
-              ReviewQueueTabBody(
-                onCountChanged: (count) {
-                  if (mounted) setState(() => _reviewCount = count);
-                },
-              ),
-
-              // Tab 3 — Social Monitor (NEW)
-              SocialMonitorTabBody(
-                availableLeaders: leaderStats,
-                onAssignRequest: (post) => _handleSocialAssign(post, leaderStats),
               ),
             ],
           );

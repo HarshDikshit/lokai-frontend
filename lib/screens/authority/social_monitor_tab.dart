@@ -1,4 +1,4 @@
-// screens/authority/social_monitor_tab.dart
+﻿// screens/authority/social_monitor_tab.dart
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -419,3 +419,4 @@ class _ErrorState extends StatelessWidget {
         ),
       );
 }
+

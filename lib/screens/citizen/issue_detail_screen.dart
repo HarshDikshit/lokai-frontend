@@ -9,23 +9,20 @@ import '../../providers/auth_provider.dart';
 import '../../providers/issues_provider.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
-
+import '../../models/models.dart';
+import '../../core/localization.dart';
 
 // ─── Safe extraction helpers ──────────────────────────────────────────────────
-/// Returns a String if the value is a String, null otherwise.
-/// Avoids 'as String?' hard-cast crashes when backend sends unexpected types.
 String? _strVal(dynamic v) {
   if (v == null) return null;
   if (v is String) {
     if (v.isEmpty) return null;
-    // Reject local server paths — they're not accessible from Flutter
     if (v.startsWith('/uploads') || v.startsWith('uploads/')) return null;
     return v;
   }
   return null;
 }
 
-/// Safely converts a dynamic list of maps from JSON into List<Map<String, dynamic>>.
 List<Map<String, dynamic>> _safeListOfMaps(dynamic raw) {
   if (raw == null) return [];
   if (raw is! List) return [];
@@ -34,6 +31,7 @@ List<Map<String, dynamic>> _safeListOfMaps(dynamic raw) {
       .map((e) => Map<String, dynamic>.from(e))
       .toList();
 }
+
 // ─── Urgency helper ───────────────────────────────────────────────────────────
 enum UrgencyLevel { critical, high, medium, low }
 
@@ -46,7 +44,7 @@ UrgencyLevel _urgencyFromScore(double? score) {
 }
 
 extension UrgencyExt on UrgencyLevel {
-  String get label => name[0].toUpperCase() + name.substring(1);
+  String label(BuildContext context) => context.translate('urgency_$name');
   Color get color {
     switch (this) {
       case UrgencyLevel.critical: return const Color(0xFFB71C1C);
@@ -86,63 +84,72 @@ class _PipelineStage {
   });
 }
 
-List<_PipelineStage> _buildPipeline(String status, int attempts) {
+List<_PipelineStage> _buildPipeline(BuildContext context, String status, int attempts) {
   final s = status.toUpperCase();
+  String t(String k) => context.translate(k);
   bool reached(List<String> ss) => ss.contains(s) || _isAfter(s, ss);
 
   return [
     _PipelineStage(
-      label: 'Submitted', subtitle: 'Complaint registered',
+      label: t('stage_submitted'), subtitle: 'Complaint registered',
       icon: Icons.assignment_turned_in_outlined,
       reached: true, active: s == 'OPEN' && attempts == 0,
     ),
     _PipelineStage(
-      label: 'AI Analysis', subtitle: 'Categorized & prioritized',
+      label: t('stage_ai_analysis'), subtitle: 'Categorized & prioritized',
       icon: Icons.auto_awesome_outlined,
       reached: true, active: false,
     ),
     _PipelineStage(
-      label: 'Assigned to Leader', subtitle: 'Leader notified',
+      label: t('stage_assigned'), subtitle: 'Leader notified',
       icon: Icons.shield_outlined,
       reached: reached(['OPEN', 'RESOLVED_L1', 'RESOLVED_L2', 'ESCALATED', 'CLOSED']),
       active: s == 'OPEN' && attempts == 0,
     ),
     _PipelineStage(
-      label: 'Resolution Attempt 1',
+      label: t('stage_attempt1'),
       subtitle: attempts >= 1 ? 'Leader filed resolution' : 'Awaiting leader action',
       icon: Icons.build_outlined,
-      reached: reached(['RESOLVED_L1', 'RESOLVED_L2', 'ESCALATED', 'CLOSED']) || (s == 'OPEN' && attempts >= 1),
+      reached: reached(['RESOLVED_L1', 'RESOLVED_L2', 'ESCALATED', 'CLOSED']) ||
+               (s == 'OPEN' && attempts >= 1),
       active: s == 'RESOLVED_L1',
     ),
     _PipelineStage(
-      label: 'Citizen Review #1',
-      subtitle: s == 'RESOLVED_L1' ? 'Awaiting your approval' : (attempts >= 1 ? 'Reviewed' : 'Pending'),
+      label: t('stage_review1'),
+      subtitle: s == 'RESOLVED_L1'
+          ? 'Awaiting your approval'
+          : (attempts >= 1 ? 'Reviewed' : 'Pending'),
       icon: Icons.how_to_vote_outlined,
-      reached: reached(['RESOLVED_L2', 'ESCALATED', 'CLOSED']) || (s == 'OPEN' && attempts >= 1),
+      reached: reached(['RESOLVED_L2', 'ESCALATED', 'CLOSED']) ||
+               (s == 'OPEN' && attempts >= 1),
       active: s == 'RESOLVED_L1',
     ),
     _PipelineStage(
-      label: 'Resolution Attempt 2',
+      label: t('stage_attempt2'),
       subtitle: attempts >= 2 ? 'Leader filed 2nd resolution' : 'Pending (if needed)',
       icon: Icons.build_circle_outlined,
       reached: reached(['RESOLVED_L2', 'ESCALATED', 'CLOSED']),
       active: s == 'RESOLVED_L2',
     ),
     _PipelineStage(
-      label: 'Citizen Review #2',
-      subtitle: s == 'RESOLVED_L2' ? 'Awaiting your approval'
+      label: t('stage_review2'),
+      subtitle: s == 'RESOLVED_L2'
+          ? 'Awaiting your approval'
           : reached(['ESCALATED', 'CLOSED']) ? 'Reviewed' : 'Pending',
       icon: Icons.verified_user_outlined,
       reached: reached(['ESCALATED', 'CLOSED']),
       active: s == 'RESOLVED_L2',
     ),
     _PipelineStage(
-      label: s == 'ESCALATED' ? 'Escalated' : 'Closed',
-      subtitle: s == 'ESCALATED' ? 'Referred to Higher Authority'
+      label: s == 'ESCALATED' ? t('stage_escalated') : t('stage_closed'),
+      subtitle: s == 'ESCALATED'
+          ? 'Referred to Higher Authority'
           : s == 'CLOSED' ? 'Issue resolved ✓' : 'Final outcome',
-      icon: s == 'ESCALATED' ? Icons.escalator_warning_rounded : Icons.task_alt_rounded,
+      icon: s == 'ESCALATED'
+          ? Icons.escalator_warning_rounded
+          : Icons.task_alt_rounded,
       reached: s == 'CLOSED' || s == 'ESCALATED',
-      active: s == 'CLOSED' || s == 'ESCALATED',
+      active:  s == 'CLOSED' || s == 'ESCALATED',
     ),
   ];
 }
@@ -163,25 +170,23 @@ class IssueDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _IssueDetailScreenState extends ConsumerState<IssueDetailScreen> {
-  bool _actionLoading = false;
+  bool   _actionLoading = false;
   Timer? _pollTimer;
 
-  // One feedback controller per attempt (attempt 1 = index 0, attempt 2 = index 1)
   final _feedbackCtrls = [TextEditingController(), TextEditingController()];
 
   @override
   void initState() {
     super.initState();
-    // Start polling — refreshes every 8s so citizen sees new attempt without restart
     _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       if (mounted) {
-        ref.read(issueDetailProvider(widget.issueId).notifier).fetch();
+        ref.invalidate(issueDetailProvider(widget.issueId));
       }
     });
   }
 
   void _manualRefresh() {
-    ref.read(issueDetailProvider(widget.issueId).notifier).fetch();
+    ref.invalidate(issueDetailProvider(widget.issueId));
   }
 
   @override
@@ -191,8 +196,130 @@ class _IssueDetailScreenState extends ConsumerState<IssueDetailScreen> {
     super.dispose();
   }
 
+  Future<void> _showSimilarIssuesSheet(BuildContext context) async {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.9,
+        builder: (_, scrollCtrl) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(children: [
+            const SizedBox(height: 12),
+            Center(child: Container(width: 40, height: 4,
+                decoration: BoxDecoration(color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(children: [
+                const Icon(Icons.hub_outlined, color: AppColors.primary),
+                const SizedBox(width: 12),
+                Text(context.translate('similar_issues_nearby'),
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              ]),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: FutureBuilder<List<dynamic>>(
+                future: ApiService.instance.getSimilarIssuesForLeader(widget.issueId),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  }
+                  final items = (snapshot.data ?? [])
+                      .map((e) => SimilarIssueItem.fromJson(e as Map<String, dynamic>))
+                      .toList();
+
+                  if (items.isEmpty) {
+                    return Center(
+                        child: Text(context.translate('no_similar_found')));
+                  }
+
+                  return ListView.separated(
+                    controller: scrollCtrl,
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (_, i) {
+                      final item = items[i];
+                      final score = (item.overlapScore * 100).round();
+                      return Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.inputFill,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.borderColor),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '$score% Match',
+                                  style: const TextStyle(fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.primary),
+                                ),
+                              ),
+                              const Spacer(),
+                              StatusBadge(status: item.status),
+                            ]),
+                            const SizedBox(height: 12),
+                            Text(
+                              item.description,
+                              style: const TextStyle(fontSize: 13, height: 1.4),
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 12),
+                            Row(children: [
+                              const Icon(Icons.person_outline,
+                                  size: 14, color: AppColors.textHint),
+                              const SizedBox(width: 6),
+                              Text(item.citizenName ?? 'Citizen',
+                                  style: const TextStyle(fontSize: 12,
+                                      color: AppColors.textSecondary)),
+                              const Spacer(),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(ctx);
+                                  context.push('/issue/${item.id}');
+                                },
+                                child: Text('${context.translate('view_details')} →'),
+                              ),
+                            ]),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
   Future<void> _verify(bool approved, String status) async {
-    // Pick the feedback text for the current attempt
     final attemptIdx = status == 'RESOLVED_L1' ? 0 : 1;
     final feedback   = _feedbackCtrls[attemptIdx].text.trim();
 
@@ -200,11 +327,12 @@ class _IssueDetailScreenState extends ConsumerState<IssueDetailScreen> {
     try {
       final result = await ApiService.instance.verifyResolution(
         widget.issueId, approved,
-        feedback: feedback.isNotEmpty ? feedback : (approved ? 'Resolved!' : 'Not satisfactory'),
+        feedback: feedback.isNotEmpty
+            ? feedback
+            : (approved ? 'Resolved!' : 'Not satisfactory'),
       );
       if (!mounted) return;
-      // Refresh both detail and list
-      ref.read(issueDetailProvider(widget.issueId).notifier).fetch();
+      ref.invalidate(issueDetailProvider(widget.issueId));
       ref.read(issuesProvider.notifier).fetchIssues();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(result['message'] ?? 'Done'),
@@ -223,7 +351,7 @@ class _IssueDetailScreenState extends ConsumerState<IssueDetailScreen> {
   Widget build(BuildContext context) {
     final auth       = ref.watch(authProvider);
     final issueAsync = ref.watch(issueDetailProvider(widget.issueId));
-    // issueAsync is AsyncValue<Map> from StateNotifierProvider
+    final isLeader   = auth.role == 'leader' || auth.role == 'admin';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -231,7 +359,7 @@ class _IssueDetailScreenState extends ConsumerState<IssueDetailScreen> {
         loading: () => const Scaffold(
             body: Center(child: CircularProgressIndicator())),
         error: (e, _) => Scaffold(
-          appBar: AppBar(title: const Text('Issue Details')),
+          appBar: AppBar(title: Text(context.translate('issue_details'))),
           body: Center(child: Text('Error: $e')),
         ),
         data: (issue) {
@@ -243,21 +371,17 @@ class _IssueDetailScreenState extends ConsumerState<IssueDetailScreen> {
 
           final score    = (issue['priority_score'] as num?)?.toDouble();
           final urgency  = _urgencyFromScore(score);
-          final pipeline = _buildPipeline(status, attempts);
+          final pipeline = _buildPipeline(context, status, attempts);
 
-          // Safe image URL
           final imageUrl = _strVal(issue['image_url']);
           final hasImage = imageUrl != null && imageUrl.isNotEmpty;
 
-          // resolution_notes = [{attempt, notes, resolved_by, resolved_at}, ...]
-          final resNotes = _safeListOfMaps(issue['resolution_notes']);
-
-          // verifications = [{attempt, before_image_url, after_image_url, ...}, ...]
+          final resNotes      = _safeListOfMaps(issue['resolution_notes']);
           final verifications = _safeListOfMaps(issue['verifications']);
 
           return CustomScrollView(
             slivers: [
-              // ── Hero app bar ──────────────────────────────────────────
+              // ── Hero app bar ────────────────────────────────────────
               SliverAppBar(
                 expandedHeight: hasImage ? 280 : 80,
                 pinned: true,
@@ -268,21 +392,34 @@ class _IssueDetailScreenState extends ConsumerState<IssueDetailScreen> {
                     if (context.canPop()) {
                       context.pop();
                     } else {
-                      context.go(auth.role == 'leader' ? '/leader/issues' : '/citizen/issues');
+                      context.go(isLeader
+                          ? '/leader/issues'
+                          : '/citizen/issues');
                     }
                   },
                 ),
                 actions: [
                   IconButton(
+                    onPressed: () {
+                      final currentLocale = ref.read(localeProvider);
+                      ref.read(localeProvider.notifier).setLocale(currentLocale.languageCode == 'en' 
+                              ? const Locale('hi') 
+                              : const Locale('en'));
+                    },
+                    icon: const Icon(Icons.language, color: Colors.white),
+                  ),
+                  IconButton(
                     icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                    tooltip: 'Refresh',
+                    tooltip: context.translate('refresh'),
                     onPressed: _manualRefresh,
                   ),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
-                  title: Text(_truncate(issue['title'] ?? '', 36),
-                      style: const TextStyle(fontSize: 14,
-                          fontWeight: FontWeight.w600, color: Colors.white)),
+                  title: Text(
+                    _truncate(issue['title'] ?? issue['description'] ?? '', 36),
+                    style: const TextStyle(fontSize: 14,
+                        fontWeight: FontWeight.w600, color: Colors.white),
+                  ),
                   titlePadding: const EdgeInsets.fromLTRB(56, 0, 16, 14),
                   background: hasImage
                       ? Stack(fit: StackFit.expand, children: [
@@ -298,12 +435,14 @@ class _IssueDetailScreenState extends ConsumerState<IssueDetailScreen> {
                               stops: [0.4, 1.0],
                             ),
                           )),
-                          Positioned(top: 12, right: 12,
+                          Positioned(
+                            top: 12, right: 12,
                             child: GestureDetector(
                               onTap: () => _showFullImage(context, imageUrl!),
                               child: Container(
                                 padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(color: Colors.black45,
+                                decoration: BoxDecoration(
+                                    color: Colors.black45,
                                     borderRadius: BorderRadius.circular(8)),
                                 child: const Icon(Icons.fullscreen,
                                     color: Colors.white, size: 20),
@@ -315,12 +454,14 @@ class _IssueDetailScreenState extends ConsumerState<IssueDetailScreen> {
                           decoration: const BoxDecoration(
                             gradient: LinearGradient(
                               colors: [AppColors.primaryDark, AppColors.primary],
-                              begin: Alignment.topLeft, end: Alignment.bottomRight,
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
                           ),
-                          child: const Center(child: Icon(
-                              Icons.report_problem_outlined,
-                              color: Colors.white38, size: 64)),
+                          child: const Center(
+                            child: Icon(Icons.report_problem_outlined,
+                                color: Colors.white38, size: 64),
+                          ),
                         ),
                 ),
               ),
@@ -344,8 +485,9 @@ class _IssueDetailScreenState extends ConsumerState<IssueDetailScreen> {
 
                       // Title + description
                       _Card(child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(issue['title'] ?? '',
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        Text(issue['title'] ?? issue['description'] ?? '',
                             style: const TextStyle(fontSize: 19,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.textPrimary)),
@@ -364,82 +506,121 @@ class _IssueDetailScreenState extends ConsumerState<IssueDetailScreen> {
 
                       // Meta
                       _Card(child: Column(children: [
-                        _MetaRow(Icons.category_outlined, 'Category',
+                        _MetaRow(Icons.category_outlined, context.translate('category'),
                             issue['category'] ?? 'AI analyzing…'),
                         const _HDivider(),
                         _MetaRow(
                           Icons.person_outline,
-                          'Reported by',
+                          context.translate('reported_by'),
                           issue['citizen_name'] ?? 'You',
-                          trailing: (auth.role == 'leader' && (issue['citizen_phone'] != null || issue['phone'] != null || issue['citizen_name'] != null))
-                              ? IconButton(
-                                  icon: const Icon(Icons.call, size: 18, color: AppColors.success),
-                                  onPressed: () => launchUrl(Uri.parse('tel:${issue['citizen_phone'] ?? issue['phone'] ?? issue['citizen_name']}')),
-                                )
-                              : null,
+                          trailing: (isLeader &&
+                                  (issue['citizen_phone'] != null ||
+                                   issue['phone'] != null))
+                               ? IconButton(
+                                   icon: const Icon(Icons.call,
+                                       size: 18, color: AppColors.success),
+                                   onPressed: () => launchUrl(Uri.parse(
+                                       'tel:${issue['citizen_phone'] ?? issue['phone']}')),
+                                 )
+                               : null,
                         ),
                         if (issue['leader_name'] != null) ...[
                           const _HDivider(),
                           _MetaRow(
                             Icons.shield_outlined,
-                            'Assigned Leader',
+                            context.translate('assigned_leader'),
                             issue['leader_name'],
-                            trailing: (auth.role == 'citizen' && (issue['leader_phone'] != null || issue['leaderPhone'] != null))
+                            trailing: (isCitizen &&
+                                    (issue['leader_phone'] != null ||
+                                     issue['leaderPhone'] != null))
                                 ? IconButton(
-                                    icon: const Icon(Icons.call, size: 18, color: AppColors.success),
-                                    onPressed: () => launchUrl(Uri.parse('tel:${issue['leader_phone'] ?? issue['leaderPhone']}')),
+                                    icon: const Icon(Icons.call,
+                                        size: 18, color: AppColors.success),
+                                    onPressed: () => launchUrl(Uri.parse(
+                                        'tel:${issue['leader_phone'] ?? issue['leaderPhone']}')),
                                   )
                                 : null,
                           ),
                         ],
                         const _HDivider(),
-                        _MetaRow(Icons.calendar_today_outlined, 'Reported on',
-                            DateFormat('MMM d, yyyy  •  HH:mm').format(
-                              DateTime.tryParse(issue['created_at'] ?? '') ?? DateTime.now(),
-                            )),
+                        _MetaRow(
+                          Icons.calendar_today_outlined,
+                          context.translate('reported_on'),
+                          DateFormat('MMM d, yyyy  •  HH:mm').format(
+                            DateTime.tryParse(issue['created_at'] ?? '') ??
+                                DateTime.now(),
+                          ),
+                        ),
                         if (issue['location'] != null) ...[
                           const _HDivider(),
-                          _MetaRow(Icons.location_on_outlined, 'Location',
+                          _MetaRow(Icons.location_on_outlined, context.translate('location'),
                               _locationLabel(issue['location'])),
                         ],
                       ])),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 16),
 
-                      // ── Resolution evidence cards (1 per attempt) ────
+                      // ── Show Similar Issues — leader only ─────────────
+                      if (isLeader) ...[
+                        OutlinedButton.icon(
+                          onPressed: () => _showSimilarIssuesSheet(context),
+                          icon: const Icon(Icons.search_rounded, size: 18),
+                          label: Text(context.translate('similar_issues_nearby')),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.primary,
+                            side: const BorderSide(color: AppColors.primary),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            minimumSize: const Size(double.infinity, 0),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+
+                      // ── Resolution evidence cards ─────────────────────
                       if (resNotes.isNotEmpty) ...[
-                        _SectionLabel(label: 'Resolution Evidence',
+                        _SectionLabel(
+                            label: context.translate('resolution_evidence'),
                             icon: Icons.fact_check_outlined),
                         const SizedBox(height: 12),
                         ...List.generate(resNotes.length, (i) {
                           final note = resNotes[i];
                           final ver  = verifications.length > i
-                              ? verifications[i] : null;
-                          // For this attempt, can citizen still verify?
+                              ? verifications[i]
+                              : null;
                           final thisAttemptPendingVerify = canVerify &&
                               ((i == 0 && status == 'RESOLVED_L1') ||
                                (i == 1 && status == 'RESOLVED_L2'));
                           return _ResolutionEvidenceCard(
-                            attempt:       (note['attempt'] as num?)?.toInt() ?? i + 1,
-                            notes:         _strVal(note['notes']) ?? '',
-                            resolvedAt:    _strVal(note['resolved_at']),
-                            beforeImageUrl: ver != null ? _strVal(ver['before_image_url']) : null,
-                            afterImageUrl:  ver != null ? _strVal(ver['after_image_url'])  : null,
-                            isFinal:       resNotes.length > 1 && i == resNotes.length - 1,
+                            attempt:        (note['attempt'] as num?)?.toInt() ?? i + 1,
+                            notes:          _strVal(note['notes']) ?? '',
+                            resolvedAt:     _strVal(note['resolved_at']),
+                            beforeImageUrl: ver != null
+                                ? _strVal(ver['before_image_url'])
+                                : null,
+                            afterImageUrl:  ver != null
+                                ? _strVal(ver['after_image_url'])
+                                : null,
+                            isFinal:         resNotes.length > 1 &&
+                                             i == resNotes.length - 1,
                             isPendingVerify: thisAttemptPendingVerify,
-                            feedbackCtrl:  _feedbackCtrls[i],
-                            loading:       _actionLoading,
-                            onApprove:     thisAttemptPendingVerify
-                                ? () => _verify(true, status) : null,
-                            onReject:      thisAttemptPendingVerify
-                                ? () => _verify(false, status) : null,
+                            feedbackCtrl:    _feedbackCtrls[i],
+                            loading:         _actionLoading,
+                            onApprove:       thisAttemptPendingVerify
+                                ? () => _verify(true, status)
+                                : null,
+                            onReject:        thisAttemptPendingVerify
+                                ? () => _verify(false, status)
+                                : null,
                             onImageTap: (url) => _showFullImage(context, url),
                           );
                         }),
                         const SizedBox(height: 24),
                       ],
 
-                      // ── Pipeline ─────────────────────────────────────
-                      _SectionLabel(label: 'Complaint Journey',
+                      // ── Pipeline ──────────────────────────────────────
+                      _SectionLabel(
+                          label: context.translate('complaint_journey'),
                           icon: Icons.route_outlined),
                       const SizedBox(height: 12),
                       _PipelineTracker(stages: pipeline),
@@ -447,9 +628,11 @@ class _IssueDetailScreenState extends ConsumerState<IssueDetailScreen> {
 
                       // Banners
                       if (status == 'ESCALATED') ...[
-                        _EscalationBanner(), const SizedBox(height: 20)],
+                        _EscalationBanner(), const SizedBox(height: 20),
+                      ],
                       if (status == 'CLOSED') ...[
-                        _ClosedBanner(), const SizedBox(height: 20)],
+                        _ClosedBanner(), const SizedBox(height: 20),
+                      ],
                     ],
                   ),
                 ),
@@ -470,7 +653,8 @@ class _IssueDetailScreenState extends ConsumerState<IssueDetailScreen> {
         child: Stack(children: [
           Center(child: InteractiveViewer(
               child: Image.network(url, fit: BoxFit.contain))),
-          Positioned(top: 40, right: 16,
+          Positioned(
+            top: 40, right: 16,
             child: IconButton(
               icon: const Icon(Icons.close, color: Colors.white, size: 28),
               onPressed: () => Navigator.pop(ctx),
@@ -483,14 +667,14 @@ class _IssueDetailScreenState extends ConsumerState<IssueDetailScreen> {
 
   String _locationLabel(dynamic loc) {
     if (loc == null) return '';
-    final m = Map<String, dynamic>.from(loc);
+    final m = Map<String, dynamic>.from(loc as Map);
     final parts = <String>[
-      if ((m['town']  ?? '').toString().isNotEmpty) m['town'],
-      if ((m['city']  ?? '').toString().isNotEmpty) m['city'],
-      if ((m['state'] ?? '').toString().isNotEmpty) m['state'],
+      if ((m['town']  ?? '').toString().isNotEmpty) m['town'].toString(),
+      if ((m['city']  ?? '').toString().isNotEmpty) m['city'].toString(),
+      if ((m['state'] ?? '').toString().isNotEmpty) m['state'].toString(),
     ];
     if (parts.isNotEmpty) return parts.join(', ');
-    if (m['address'] != null) return m['address'];
+    if (m['address'] != null) return m['address'].toString();
     final lat = (m['latitude']  as num?)?.toStringAsFixed(4);
     final lng = (m['longitude'] as num?)?.toStringAsFixed(4);
     return '$lat, $lng';
@@ -501,18 +685,18 @@ class _IssueDetailScreenState extends ConsumerState<IssueDetailScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Resolution evidence card — shows notes + before/after + verify panel
+// Resolution evidence card
 // ─────────────────────────────────────────────────────────────────────────────
 class _ResolutionEvidenceCard extends StatelessWidget {
-  final int attempt;
+  final int    attempt;
   final String notes;
   final String? resolvedAt;
   final String? beforeImageUrl;
   final String? afterImageUrl;
-  final bool isFinal;
-  final bool isPendingVerify;
+  final bool   isFinal;
+  final bool   isPendingVerify;
   final TextEditingController feedbackCtrl;
-  final bool loading;
+  final bool         loading;
   final VoidCallback? onApprove;
   final VoidCallback? onReject;
   final void Function(String url) onImageTap;
@@ -534,8 +718,10 @@ class _ResolutionEvidenceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = isFinal ? AppColors.warning : AppColors.success;
-    final attemptLabel = isFinal ? 'Final Resolution  ✔✔' : 'Resolution Attempt $attempt  ✔';
+    final accentColor  = isFinal ? AppColors.warning : AppColors.success;
+    final attemptLabel = isFinal
+        ? '${context.translate('final_resolution')}  ✔✔'
+        : '${context.translate('resolution_attempt')} $attempt  ✔';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -555,7 +741,7 @@ class _ResolutionEvidenceCard extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-        // ── Header bar ──────────────────────────────────────────────────
+        // Header
         Container(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
           decoration: BoxDecoration(
@@ -566,9 +752,7 @@ class _ResolutionEvidenceCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: accentColor.withOpacity(0.15),
-                shape: BoxShape.circle,
-              ),
+                  color: accentColor.withOpacity(0.15), shape: BoxShape.circle),
               child: Icon(
                 isFinal ? Icons.build_circle_outlined : Icons.build_outlined,
                 size: 16, color: accentColor,
@@ -577,14 +761,12 @@ class _ResolutionEvidenceCard extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(attemptLabel,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
-                      color: accentColor)),
+              Text(attemptLabel, style: TextStyle(fontSize: 13,
+                  fontWeight: FontWeight.w700, color: accentColor)),
               if (resolvedAt != null)
-                Text(
-                  _fmtDate(resolvedAt!),
-                  style: const TextStyle(fontSize: 11, color: AppColors.textHint),
-                ),
+                Text(_fmtDate(resolvedAt!),
+                    style: const TextStyle(fontSize: 11,
+                        color: AppColors.textHint)),
             ])),
             if (isPendingVerify)
               Container(
@@ -594,47 +776,42 @@ class _ResolutionEvidenceCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: AppColors.info.withOpacity(0.4)),
                 ),
-                child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.hourglass_top_rounded,
-                      size: 11, color: AppColors.info),
-                  SizedBox(width: 4),
-                  Text('Awaiting Review',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-                          color: AppColors.info)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.hourglass_top_rounded, size: 11, color: AppColors.info),
+                  const SizedBox(width: 4),
+                  _AwaitingReviewText(),
                 ]),
               ),
-          ]),
+            ],
+          ),
         ),
 
         Padding(
           padding: const EdgeInsets.all(14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-            // ── Before / After images (shown first so citizen sees evidence) ──
+            // Before / After photos
             if (beforeImageUrl != null || afterImageUrl != null) ...[
-              Row(children: const [
-                Icon(Icons.photo_library_outlined, size: 14,
+              Row(children: [
+                const Icon(Icons.photo_library_outlined, size: 14,
                     color: AppColors.textSecondary),
-                SizedBox(width: 6),
-                Text('Verification Photos',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
-                        color: AppColors.textSecondary)),
+                const SizedBox(width: 6),
+                Text(context.translate('verification_photos'), style: const TextStyle(fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary)),
               ]),
               const SizedBox(height: 10),
               Row(children: [
                 if (beforeImageUrl != null)
                   Expanded(child: _VerifPhoto(
-                    url: beforeImageUrl!,
-                    label: 'BEFORE',
+                    url: beforeImageUrl!, label: 'BEFORE',
                     color: AppColors.info,
                     onTap: () => onImageTap(beforeImageUrl!),
                   )),
-                if (beforeImageUrl != null && afterImageUrl != null)
-                  const SizedBox(width: 10),
+                const SizedBox(width: 10),
                 if (afterImageUrl != null)
                   Expanded(child: _VerifPhoto(
-                    url: afterImageUrl!,
-                    label: 'AFTER',
+                    url: afterImageUrl!, label: 'AFTER',
                     color: AppColors.success,
                     onTap: () => onImageTap(afterImageUrl!),
                   )),
@@ -644,14 +821,13 @@ class _ResolutionEvidenceCard extends StatelessWidget {
               const SizedBox(height: 16),
             ],
 
-            // ── Leader's resolution notes ──────────────────────────────
-            Row(children: const [
-              Icon(Icons.description_outlined, size: 14,
+            // Leader notes
+            Row(children: [
+              const Icon(Icons.description_outlined, size: 14,
                   color: AppColors.textSecondary),
-              SizedBox(width: 6),
-              Text('What the leader did',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
-                      color: AppColors.textSecondary)),
+              const SizedBox(width: 6),
+              Text(context.translate('leader_action_desc'), style: const TextStyle(fontSize: 12,
+                  fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
             ]),
             const SizedBox(height: 8),
             Container(
@@ -663,19 +839,17 @@ class _ResolutionEvidenceCard extends StatelessWidget {
                 border: Border.all(color: AppColors.borderColor),
               ),
               child: Text(
-                notes.isNotEmpty ? notes : 'No notes provided.',
+                notes.isNotEmpty ? notes : context.translate('no_notes'),
                 style: const TextStyle(fontSize: 13,
                     color: AppColors.textPrimary, height: 1.5),
               ),
             ),
 
-            // ── Citizen feedback + action buttons ──────────────────────
+            // Citizen verify panel
             if (isPendingVerify) ...[
               const SizedBox(height: 20),
               const _SectionDivider(),
               const SizedBox(height: 16),
-
-              // "Is the issue fixed?" prompt
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -683,8 +857,7 @@ class _ResolutionEvidenceCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: AppColors.info.withOpacity(0.3)),
                 ),
-                child: Row(crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   const Icon(Icons.info_outline, color: AppColors.info, size: 16),
                   const SizedBox(width: 8),
                   Expanded(child: Text(
@@ -698,17 +871,15 @@ class _ResolutionEvidenceCard extends StatelessWidget {
                 ]),
               ),
               const SizedBox(height: 14),
-
-              // Feedback text field
               TextField(
                 controller: feedbackCtrl,
                 maxLines: 3,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: 'Write your feedback (optional)…\n'
                       'e.g. "Road repaired but minor cracks remain"',
-                  hintStyle: const TextStyle(fontSize: 12),
+                  hintStyle: TextStyle(fontSize: 12),
                   alignLabelWithHint: true,
-                  prefixIcon: const Padding(
+                  prefixIcon: Padding(
                     padding: EdgeInsets.only(bottom: 40),
                     child: Icon(Icons.edit_note_rounded,
                         color: AppColors.textHint, size: 20),
@@ -716,13 +887,11 @@ class _ResolutionEvidenceCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 14),
-
-              // Approve / Reject
               Row(children: [
                 Expanded(child: OutlinedButton.icon(
                   onPressed: (loading || onReject == null) ? null : onReject,
                   icon: const Icon(Icons.close_rounded, size: 16),
-                  label: const Text('Reject'),
+                  label: Text(context.translate('reject')),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.error,
                     side: const BorderSide(color: AppColors.error),
@@ -737,7 +906,7 @@ class _ResolutionEvidenceCard extends StatelessWidget {
                           child: CircularProgressIndicator(
                               strokeWidth: 2, color: Colors.white))
                       : const Icon(Icons.check_rounded, size: 16),
-                  label: const Text('Approve'),
+                  label: Text(context.translate('approve')),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.success,
                     padding: const EdgeInsets.symmetric(vertical: 14),
@@ -745,18 +914,15 @@ class _ResolutionEvidenceCard extends StatelessWidget {
                 )),
               ]),
             ] else if (afterImageUrl != null || notes.isNotEmpty) ...[
-              // Past attempt — show "Reviewed" label
               const SizedBox(height: 14),
               const _SectionDivider(),
               const SizedBox(height: 10),
               Row(children: [
-                Icon(Icons.check_circle_outline_rounded,
+                const Icon(Icons.check_circle_outline_rounded,
                     size: 14, color: AppColors.textHint),
                 const SizedBox(width: 6),
-                Text(
-                  'Citizen reviewed this resolution',
-                  style: const TextStyle(fontSize: 11, color: AppColors.textHint),
-                ),
+                Text(context.translate('citizen_reviewed'),
+                    style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
               ]),
             ],
           ]),
@@ -799,7 +965,7 @@ class _VerifPhoto extends StatelessWidget {
             Image.network(url, fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => Container(
                   color: AppColors.inputFill,
-                  child: Icon(Icons.broken_image_outlined,
+                  child: const Icon(Icons.broken_image_outlined,
                       color: AppColors.textHint, size: 32),
                 )),
             // Gradient
@@ -847,7 +1013,7 @@ class _UrgencyChip extends StatelessWidget {
     child: Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(urgency.icon, size: 13, color: urgency.color),
       const SizedBox(width: 5),
-      Text(urgency.label,
+      Text(urgency.label(context),
           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
               color: urgency.color)),
     ]),
@@ -866,8 +1032,8 @@ class _PriorityBar extends StatelessWidget {
       Row(children: [
         Icon(Icons.analytics_outlined, size: 15, color: AppColors.textSecondary),
         const SizedBox(width: 6),
-        const Text('AI Priority Score',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+        Text(context.translate('ai_priority_score'),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
                 color: AppColors.textSecondary)),
         const Spacer(),
         Text('$pct / 100', style: TextStyle(fontSize: 14,
@@ -896,7 +1062,7 @@ class _PriorityBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       margin: const EdgeInsets.only(right: 4),
       decoration: BoxDecoration(
-        color: active ? color.withOpacity(0.15) : AppColors.inputFill,
+        color:  active ? color.withOpacity(0.15) : AppColors.inputFill,
         borderRadius: BorderRadius.circular(6),
         border: active ? Border.all(color: color.withOpacity(0.5)) : null,
       ),
@@ -926,18 +1092,19 @@ class _PipelineTracker extends StatelessWidget {
 
 class _PipelineRow extends StatelessWidget {
   final _PipelineStage stage;
-  final bool isLast;
+  final bool           isLast;
   const _PipelineRow({required this.stage, required this.isLast});
   @override
   Widget build(BuildContext context) {
-    Color dotColor;
+    Color  dotColor;
     Widget dotChild;
-    Color lineColor;
+    Color  lineColor;
     if (stage.active) {
       dotColor  = AppColors.primary;
       lineColor = AppColors.primary.withOpacity(0.3);
       dotChild  = Container(width: 10, height: 10,
-          decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white));
+          decoration: const BoxDecoration(
+              shape: BoxShape.circle, color: Colors.white));
     } else if (stage.reached) {
       dotColor  = AppColors.success;
       lineColor = AppColors.success.withOpacity(0.4);
@@ -963,21 +1130,26 @@ class _PipelineRow extends StatelessWidget {
             child: Center(child: dotChild),
           ),
           if (!isLast)
-            Expanded(child: Center(child: Container(width: 2, color: lineColor))),
+            Expanded(child: Center(
+                child: Container(width: 2, color: lineColor))),
         ])),
         Expanded(child: Padding(
           padding: EdgeInsets.fromLTRB(0, 12, 16, isLast ? 12 : 20),
           child: Row(children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(stage.label, style: TextStyle(fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: stage.active ? AppColors.primary
-                      : stage.reached ? AppColors.textPrimary : AppColors.textHint)),
+                  color: stage.active
+                      ? AppColors.primary
+                      : stage.reached
+                          ? AppColors.textPrimary
+                          : AppColors.textHint)),
               const SizedBox(height: 2),
               Text(stage.subtitle, style: TextStyle(fontSize: 11,
                   color: stage.active
-                      ? AppColors.primary.withOpacity(0.7) : AppColors.textHint)),
+                      ? AppColors.primary.withOpacity(0.7)
+                      : AppColors.textHint)),
             ])),
             if (stage.active)
               Container(
@@ -985,9 +1157,10 @@ class _PipelineRow extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                  border: Border.all(
+                      color: AppColors.primary.withOpacity(0.3)),
                 ),
-                child: const Text('Current', style: TextStyle(fontSize: 10,
+                child: Text(context.translate('current_status'), style: const TextStyle(fontSize: 10,
                     fontWeight: FontWeight.w700, color: AppColors.primary)),
               ),
           ]),
@@ -1007,17 +1180,16 @@ class _EscalationBanner extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       border: Border.all(color: AppColors.error.withOpacity(0.3)),
     ),
-    child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 20),
-      SizedBox(width: 10),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 20),
+      const SizedBox(width: 10),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-        Text('Escalated to Higher Authority',
-            style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.error)),
-        SizedBox(height: 4),
-        Text('The assigned leader failed to resolve this issue after 2 attempts. '
-            'Higher Authority will now take action.',
-            style: TextStyle(fontSize: 13, color: AppColors.error, height: 1.5)),
+        Text(context.translate('escalated_banner_title'),
+            style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.error)),
+        const SizedBox(height: 4),
+        Text(context.translate('escalated_banner_desc'),
+            style: const TextStyle(fontSize: 13, color: AppColors.error, height: 1.5)),
       ])),
     ]),
   );
@@ -1032,16 +1204,16 @@ class _ClosedBanner extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       border: Border.all(color: AppColors.success.withOpacity(0.3)),
     ),
-    child: const Row(children: [
-      Icon(Icons.task_alt_rounded, color: AppColors.success, size: 20),
-      SizedBox(width: 10),
+    child: Row(children: [
+      const Icon(Icons.task_alt_rounded, color: AppColors.success, size: 20),
+      const SizedBox(width: 10),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-        Text('Issue Closed', style: TextStyle(fontWeight: FontWeight.w700,
+        Text(context.translate('closed_banner_title'), style: const TextStyle(fontWeight: FontWeight.w700,
             color: AppColors.success)),
-        SizedBox(height: 4),
-        Text('This complaint has been successfully resolved and closed.',
-            style: TextStyle(fontSize: 13, color: AppColors.success, height: 1.5)),
+        const SizedBox(height: 4),
+        Text(context.translate('closed_banner_desc'),
+            style: const TextStyle(fontSize: 13, color: AppColors.success, height: 1.5)),
       ])),
     ]),
   );
@@ -1118,4 +1290,13 @@ class _SectionLabel extends StatelessWidget {
     Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
         color: AppColors.textPrimary)),
   ]);
+}
+
+class _AwaitingReviewText extends StatelessWidget {
+  const _AwaitingReviewText();
+  @override
+  Widget build(BuildContext context) => Text(
+    context.translate('awaiting_citizen_review'),
+    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.info),
+  );
 }

@@ -1,4 +1,4 @@
-// core/app_constants.dart
+﻿// core/app_constants.dart
 
 class ApiConstants {
   static const String baseUrl =
@@ -12,10 +12,6 @@ class ApiConstants {
   // ── Issues ──────────────────────────────────────────────────────────────
   static const String issues          = '/issues';
   static const String escalatedIssues = '/issues/escalated/list';
-
-  // ── Duplicate / Cluster ─────────────────────────────────────────────────
-  static const String similarIssues  = '/issues/similar';
-  static const String reviewQueue    = '/issues/review/queue';
 
   // ── Verifications ────────────────────────────────────────────────────────
   static const String verifications = '/verifications';
@@ -33,6 +29,9 @@ class ApiConstants {
   // ── Social Media ────────────────────────────────────────────────────────
   static const String socialMonitor = '/social-media/social-monitor';
   static const String socialAssign  = '/social-media/assign';
+
+  // ── Chatbot ─────────────────────────────────────────────────────────────
+  static const String chatbotChat = '/chatbot/chat';
 
   // ── Polling ──────────────────────────────────────────────────────────────
   static const int pollingIntervalSeconds = 10;

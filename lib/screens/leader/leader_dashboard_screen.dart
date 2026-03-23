@@ -1,10 +1,11 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/issues_provider.dart';
+import '../../core/localization.dart';
 
 class LeaderDashboardScreen extends ConsumerWidget {
   const LeaderDashboardScreen({super.key});
@@ -25,11 +26,20 @@ class LeaderDashboardScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Leader Dashboard'),
+        title: Text(context.translate('leader_dashboard')),
         actions: [
           IconButton(
+            onPressed: () {
+              final currentLocale = ref.read(localeProvider);
+              ref.read(localeProvider.notifier).setLocale(currentLocale.languageCode == 'en' 
+                      ? const Locale('hi') 
+                      : const Locale('en'));
+            },
+            icon: const Icon(Icons.language),
+          ),
+          IconButton(
             icon: const Icon(Icons.logout_outlined),
-            tooltip: 'Logout',
+            tooltip: context.translate('logout'),
             onPressed: () {
               ref.read(authProvider.notifier).logout();
               context.go('/');
@@ -43,10 +53,10 @@ class LeaderDashboardScreen extends ConsumerWidget {
           if (i == 1) context.go('/leader/issues');
           if (i == 2) context.go('/feed'); 
         },
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined),  label: 'Dashboard'),
-          NavigationDestination(icon: Icon(Icons.list_alt_outlined),    label: 'Issues'),
-          NavigationDestination(icon: Icon(Icons.campaign_rounded),    label: 'Feed'),  // ← new
+        destinations: [
+          NavigationDestination(icon: const Icon(Icons.dashboard_outlined),  label: context.translate('status_all')),
+          NavigationDestination(icon: const Icon(Icons.list_alt_outlined),    label: context.translate('assigned_issues')),
+          NavigationDestination(icon: const Icon(Icons.campaign_rounded),    label: context.translate('feed_title')),
         ],
       ),
       body: dashAsync.when(
@@ -82,7 +92,7 @@ class LeaderDashboardScreen extends ConsumerWidget {
                       const SizedBox(height: 24),
 
                       // ── Performance overview ─────────────────────────
-                      _SectionLabel(label: 'Performance Overview'),
+                      _SectionLabel(label: context.translate('performance_overview')),
                       const SizedBox(height: 12),
 
                       _MetricsGrid(
@@ -98,7 +108,7 @@ class LeaderDashboardScreen extends ConsumerWidget {
 
                       // ── Category pie ─────────────────────────────────
                       if (categories.isNotEmpty) ...[
-                        _SectionLabel(label: 'Issue Categories'),
+                        _SectionLabel(label: context.translate('issue_categories')),
                         const SizedBox(height: 12),
                         _CategoryCard(
                           categories: categories,
@@ -110,7 +120,7 @@ class LeaderDashboardScreen extends ConsumerWidget {
 
                       // ── Monthly bar chart ────────────────────────────
                       if (monthly.isNotEmpty) ...[
-                        _SectionLabel(label: 'Monthly Resolution Trend'),
+                        _SectionLabel(label: context.translate('monthly_resolution_trend')),
                         const SizedBox(height: 12),
                         _MonthlyChart(monthly: monthly),
                         const SizedBox(height: 24),
@@ -163,11 +173,11 @@ class _WelcomeCard extends StatelessWidget {
         const SizedBox(width: 14),
 
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Hello, $name!',
+          Text(context.translate('welcome_leader').replaceAll('{name}', name),
               style: const TextStyle(color: Colors.white, fontSize: 17,
                   fontWeight: FontWeight.w700)),
           const SizedBox(height: 3),
-          const Text('Local Leader', style: TextStyle(color: Colors.white70, fontSize: 12)),
+          Text(context.translate('local_leader'), style: const TextStyle(color: Colors.white70, fontSize: 12)),
         ])),
 
         // Failed badge
@@ -181,7 +191,7 @@ class _WelcomeCard extends StatelessWidget {
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               const Icon(Icons.warning_rounded, color: Colors.white, size: 13),
               const SizedBox(width: 4),
-              Text('$failedCases Failed',
+              Text('$failedCases ${context.translate('failed')}',
                   style: const TextStyle(color: Colors.white, fontSize: 11,
                       fontWeight: FontWeight.w700)),
             ]),
@@ -218,12 +228,12 @@ class _MetricsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
-      _MetricDef('Total Issues',    metrics['total_issues']    ?? 0, Icons.list_alt_rounded,           AppColors.primary),
-      _MetricDef('Active',          metrics['active_problems'] ?? 0, Icons.radio_button_checked,       AppColors.info),
-      _MetricDef('Completed Tasks', metrics['completed_tasks'] ?? 0, Icons.check_circle_outline,       AppColors.success),
-      _MetricDef('Pending Tasks',   metrics['pending_tasks']   ?? 0, Icons.pending_actions_rounded,    AppColors.warning),
-      _MetricDef('Escalated',       metrics['escalated_cases'] ?? 0, Icons.arrow_upward_rounded,       AppColors.statusEscalated),
-      _MetricDef('Failed Cases',    metrics['failed_cases']    ?? 0, Icons.cancel_outlined,            AppColors.error),
+      _MetricDef(context.translate('total_issues'),    metrics['total_issues']    ?? 0, Icons.list_alt_rounded,           AppColors.primary),
+      _MetricDef(context.translate('metrics_active'),          metrics['active_problems'] ?? 0, Icons.radio_button_checked,       AppColors.info),
+      _MetricDef(context.translate('metrics_completed'), metrics['completed_tasks'] ?? 0, Icons.check_circle_outline,       AppColors.success),
+      _MetricDef(context.translate('metrics_pending'),   metrics['pending_tasks']   ?? 0, Icons.pending_actions_rounded,    AppColors.warning),
+      _MetricDef(context.translate('metrics_escalated'),       metrics['escalated_cases'] ?? 0, Icons.arrow_upward_rounded,       AppColors.statusEscalated),
+      _MetricDef(context.translate('metrics_failed'),    metrics['failed_cases']    ?? 0, Icons.cancel_outlined,            AppColors.error),
     ];
 
     // On tablet: 3-col, on phone: 2-col
@@ -328,9 +338,9 @@ class _ResolutionRateCard extends StatelessWidget {
 
     Color barColor;
     String note;
-    if (rate >= 0.75) { barColor = AppColors.success;          note = 'Excellent performance'; }
-    else if (rate >= 0.5) { barColor = AppColors.warning;      note = 'Good — keep going!';   }
-    else                  { barColor = AppColors.statusEscalated; note = 'Needs improvement'; }
+    if (rate >= 0.75) { barColor = AppColors.success;          note = context.translate('excellent_perf'); }
+    else if (rate >= 0.5) { barColor = AppColors.warning;      note = context.translate('good_keep_going');   }
+    else                  { barColor = AppColors.statusEscalated; note = context.translate('needs_improvement'); }
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -343,7 +353,7 @@ class _ResolutionRateCard extends StatelessWidget {
         Row(children: [
           const Icon(Icons.analytics_outlined, size: 16, color: AppColors.textSecondary),
           const SizedBox(width: 8),
-          const Text('Resolution Rate', style: TextStyle(fontSize: 13,
+          Text(context.translate('resolution_rate'), style: const TextStyle(fontSize: 13,
               fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
           const Spacer(),
           Text('$pct%', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800,
@@ -531,7 +541,7 @@ class _ErrorView extends StatelessWidget {
         ElevatedButton.icon(
           onPressed: onRetry,
           icon: const Icon(Icons.refresh_rounded, size: 18),
-          label: const Text('Retry'),
+          label: Text(context.translate('retry')),
         ),
       ]),
     ),

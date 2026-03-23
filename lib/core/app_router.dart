@@ -1,4 +1,4 @@
-// core/router.dart
+﻿// core/router.dart
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -15,8 +15,8 @@ import '../screens/citizen/location_picker_screen.dart';
 import '../screens/leader/leader_dashboard_screen.dart';
 import '../screens/leader/issues_list_screen.dart';
 import '../screens/authority/authority_screen.dart';
-import '../screens/authority/review_queue_screen.dart';
 import '../screens/citizen/community_feed_screen.dart';
+import '../screens/citizen/chatbot_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
@@ -49,6 +49,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/citizen/location_picker',
         builder: (_, __) => const LocationPickerScreen(),
       ),
+      GoRoute(
+        path: '/citizen/chatbot',
+        name: 'chatbot',
+        builder: (_, __) => const ChatbotScreen(),
+      ),
 
       // ── Leader ────────────────────────────────────────────────────────
       GoRoute(path: '/leader',        builder: (_, __) => const LeaderDashboardScreen()),
@@ -57,7 +62,6 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // ── Higher Authority ──────────────────────────────────────────────
       GoRoute(path: '/authority',              builder: (_, __) => const AuthorityScreen()),
-      GoRoute(path: '/authority/review-queue', builder: (_, __) => const ReviewQueueScreen()),
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(child: Text('Page not found: ${state.matchedLocation}')),

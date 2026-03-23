@@ -1,13 +1,15 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/app_theme.dart';
+import '../../core/localization.dart';
 
-class LocationPickerScreen extends StatefulWidget {
+class LocationPickerScreen extends ConsumerStatefulWidget {
   final double? initialLat;
   final double? initialLng;
 
@@ -18,10 +20,10 @@ class LocationPickerScreen extends StatefulWidget {
   });
 
   @override
-  State<LocationPickerScreen> createState() => _LocationPickerScreenState();
+  ConsumerState<LocationPickerScreen> createState() => _LocationPickerScreenState();
 }
 
-class _LocationPickerScreenState extends State<LocationPickerScreen> {
+class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
   final MapController _mapController = MapController();
   late LatLng _currentCenter;
   
@@ -57,12 +59,12 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     super.dispose();
   }
 
-  void _onPositionChanged(MapPosition position, bool hasGesture) {
-    if (position.center != null) {
+  void _onPositionChanged(MapCamera camera, bool hasGesture) {
+    if (camera.center != null) {
       if (!_isDragging) {
         setState(() => _isDragging = true);
       }
-      _currentCenter = position.center!;
+      _currentCenter = camera.center;
       
       _debounceTimer?.cancel();
       _debounceTimer = Timer(const Duration(milliseconds: 800), () {
@@ -121,12 +123,12 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         _mapController.move(newPos, 14.0);
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location not found')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.translate('location_not_found'))));
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not find location: $query')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.translate('could_not_find_location').replaceAll('{query}', query))));
       }
     } finally {
       if (mounted) setState(() => _isSearching = false);
@@ -207,11 +209,23 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Choose Location', style: TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(context.translate('choose_location'), style: const TextStyle(fontWeight: FontWeight.w600)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
+        actions: [
+          IconButton(
+            onPressed: () {
+              final currentLocale = ref.read(localeProvider);
+              ref.read(localeProvider.notifier).setLocale(
+                  currentLocale.languageCode == 'en' 
+                      ? const Locale('hi') 
+                      : const Locale('en'));
+            },
+            icon: const Icon(Icons.language),
+          ),
+        ],
       ),
       body: Stack(
         children: [
@@ -288,9 +302,9 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Selected Location',
-                              style: TextStyle(
+                            Text(
+                              context.translate('selected_location'),
+                              style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 color: AppColors.textHint,
@@ -298,7 +312,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                             ),
                             const SizedBox(height: 4),
                             if (_isLoadingAddress)
-                              const Text('Fetching address...', style: TextStyle(fontSize: 14, color: AppColors.textSecondary))
+                              Text(context.translate('fetching_address'), style: const TextStyle(fontSize: 14, color: AppColors.textSecondary))
                             else if (_readableAddress != null)
                               Text(
                                 _readableAddress!,
@@ -325,7 +339,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       elevation: 0,
                     ),
-                    child: const Text('Confirm Location', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                    child: Text(context.translate('confirm_location'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                   ),
                 ],
               ),
@@ -358,7 +372,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                     onSubmitted: _searchLocation,
                     onChanged: _onSearchChanged,
                     decoration: InputDecoration(
-                      hintText: 'Search city, town, or state...',
+                      hintText: context.translate('search_hint'),
                       prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
                       suffixIcon: _isSearching || _isSuggesting
                           ? const Padding(
@@ -428,3 +442,4 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     );
   }
 }
+

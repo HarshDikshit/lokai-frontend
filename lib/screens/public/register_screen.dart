@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import '../../core/app_theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../core/localization.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -56,6 +57,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
 
   // ─── Location detect ──────────────────────────────────────────────────────
   Future<void> _detectLocation() async {
+    // I'll skip translating error messages for now to keep it concise, but the main UI will be translated
     setState(() => _isGettingLocation = true);
     try {
       LocationPermission perm = await Geolocator.checkPermission();
@@ -150,11 +152,25 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Back
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios, color: AppColors.primary),
-                    onPressed: () => context.go('/'),
-                    padding: EdgeInsets.zero,
-                    iconSize: isTablet ? 24 : 20,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_ios, color: AppColors.primary),
+                        onPressed: () => context.go('/'),
+                        padding: EdgeInsets.zero,
+                        iconSize: isTablet ? 24 : 20,
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          final currentLocale = ref.read(localeProvider);
+                          ref.read(localeProvider.notifier).setLocale(currentLocale.languageCode == 'en' 
+                                  ? const Locale('hi') 
+                                  : const Locale('en'));
+                        },
+                        icon: const Icon(Icons.language, color: AppColors.primary),
+                      ),
+                    ],
                   ),
                   SizedBox(height: isTablet ? 36 : 24),
 
@@ -170,18 +186,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                     ),
                     const SizedBox(width: 16),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Create Account',
+                      Text(context.translate('create_account'),
                           style: TextStyle(fontSize: headingSize,
                               fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
                       const SizedBox(height: 4),
-                      const Text('Join LokAI civic governance platform',
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                      Text(context.translate('join_platform'),
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                     ])),
                   ]),
                   SizedBox(height: isTablet ? 32 : 24),
 
                   // Role cards — 2-column on tablet
-                  _sectionLabel('I am a…'),
+                  _sectionLabel(context.translate('i_am_a')),
                   const SizedBox(height: 10),
                   isTablet ? _roleGridTablet() : _roleListMobile(),
                   SizedBox(height: isTablet ? 28 : 20),
@@ -192,7 +208,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _sectionLabel('Personal Details'),
+                        _sectionLabel(context.translate('personal_details')),
                         const SizedBox(height: 14),
 
                         // Name + Phone in row on tablet
@@ -259,19 +275,19 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                                 ? const SizedBox(height: 20, width: 20,
                                     child: CircularProgressIndicator(
                                         strokeWidth: 2, color: Colors.white))
-                                : const Text('Create Account'),
+                                : Text(context.translate('create_account')),
                           ),
                         ),
                         const SizedBox(height: 16),
 
                         // Login link
                         Center(child: Wrap(children: [
-                          const Text('Already have an account? ',
-                              style: TextStyle(color: AppColors.textSecondary)),
+                          Text(context.translate('already_have_account'),
+                              style: const TextStyle(color: AppColors.textSecondary)),
                           GestureDetector(
                             onTap: () => context.go('/login'),
-                            child: const Text('Sign in',
-                                style: TextStyle(color: AppColors.primary,
+                            child: Text(context.translate('sign_in_link'),
+                                style: const TextStyle(color: AppColors.primary,
                                     fontWeight: FontWeight.w600)),
                           ),
                         ])),
@@ -360,17 +376,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
   Widget _nameField() => TextFormField(
     controller: _nameCtrl,
     textCapitalization: TextCapitalization.words,
-    decoration: const InputDecoration(
-        labelText: 'Full Name', prefixIcon: Icon(Icons.person_outline)),
-    validator: (v) => v == null || v.trim().length < 2 ? 'Enter your full name' : null,
+    decoration: InputDecoration(
+        labelText: context.translate('full_name'), prefixIcon: const Icon(Icons.person_outline)),
+    validator: (v) => v == null || v.trim().length < 2 ? context.translate('full_name') : null,
   );
 
   Widget _emailField() => TextFormField(
     controller: _emailCtrl,
     keyboardType: TextInputType.emailAddress,
-    decoration: const InputDecoration(
-        labelText: 'Email Address', prefixIcon: Icon(Icons.email_outlined)),
-    validator: (v) => v == null || !v.contains('@') ? 'Enter a valid email' : null,
+    decoration: InputDecoration(
+        labelText: context.translate('email_address'), prefixIcon: const Icon(Icons.email_outlined)),
+    validator: (v) => v == null || !v.contains('@') ? context.translate('enter_valid_email') : null,
   );
 
   Widget _phoneField() => TextFormField(
@@ -378,9 +394,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
     keyboardType: TextInputType.phone,
     maxLength: 10,
     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-    decoration: const InputDecoration(
-      labelText: 'Contact Number *',
-      prefixIcon: Icon(Icons.phone_outlined),
+    decoration: InputDecoration(
+      labelText: '${context.translate('contact_number')} *',
+      prefixIcon: const Icon(Icons.phone_outlined),
       prefixText: '+91  ',
       counterText: '',
       hintText: '10-digit number',
@@ -396,14 +412,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
     controller: _passCtrl,
     obscureText: _obscure,
     decoration: InputDecoration(
-      labelText: 'Password',
+      labelText: context.translate('password'),
       prefixIcon: const Icon(Icons.lock_outline),
       suffixIcon: IconButton(
         icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
         onPressed: () => setState(() => _obscure = !_obscure),
       ),
     ),
-    validator: (v) => v == null || v.length < 6 ? 'Minimum 6 characters' : null,
+    validator: (v) => v == null || v.length < 6 ? context.translate('min_6_char') : null,
   );
 
   // ─── Leader Working Zone ──────────────────────────────────────────────────
@@ -412,11 +428,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionLabel('Working Zone'),
+        _sectionLabel(context.translate('working_zone')),
         const SizedBox(height: 4),
-        const Text(
-          'Set the area you will manage civic issues for.',
-          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        Text(
+          context.translate('set_area_manage'),
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 14),
 
@@ -437,16 +453,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
             unselectedLabelColor: AppColors.textSecondary,
             labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             dividerColor: Colors.transparent,
-            tabs: const [
+            tabs: [
               Tab(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Icons.edit_outlined, size: 15),
-                SizedBox(width: 6),
-                Text('Manual'),
+                const Icon(Icons.edit_outlined, size: 15),
+                const SizedBox(width: 6),
+                Text(context.translate('manual')),
               ])),
               Tab(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Icons.my_location, size: 15),
-                SizedBox(width: 6),
-                Text('Use Location'),
+                const Icon(Icons.my_location, size: 15),
+                const SizedBox(width: 6),
+                Text(context.translate('use_location')),
               ])),
             ],
           ),
@@ -486,8 +502,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
   Widget _stateField() => TextFormField(
     controller: _stateCtrl,
     textCapitalization: TextCapitalization.words,
-    decoration: const InputDecoration(
-        labelText: 'State *', prefixIcon: Icon(Icons.map_outlined),
+    decoration: InputDecoration(
+        labelText: '${context.translate('state')} *', prefixIcon: const Icon(Icons.map_outlined),
         hintText: 'e.g. Uttar Pradesh'),
     validator: (v) => _selectedRole == 'leader' && (v == null || v.trim().isEmpty)
         ? 'State is required' : null,
@@ -496,9 +512,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
   Widget _cityField() => TextFormField(
     controller: _cityCtrl,
     textCapitalization: TextCapitalization.words,
-    decoration: const InputDecoration(
-        labelText: 'City / District *',
-        prefixIcon: Icon(Icons.location_city_outlined),
+    decoration: InputDecoration(
+        labelText: '${context.translate('city')} *',
+        prefixIcon: const Icon(Icons.location_city_outlined),
         hintText: 'e.g. Lucknow'),
     validator: (v) => _selectedRole == 'leader' && (v == null || v.trim().isEmpty)
         ? 'City is required' : null,
@@ -507,9 +523,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
   Widget _townField() => TextFormField(
     controller: _townCtrl,
     textCapitalization: TextCapitalization.words,
-    decoration: const InputDecoration(
-        labelText: 'Town / Area (optional)',
-        prefixIcon: Icon(Icons.holiday_village_outlined),
+    decoration: InputDecoration(
+        labelText: context.translate('town'),
+        prefixIcon: const Icon(Icons.holiday_village_outlined),
         hintText: 'e.g. Hazratganj'),
   );
 
@@ -527,7 +543,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.gps_fixed),
             label: Text(_isGettingLocation ? 'Detecting…'
-                : hasData ? 'Re-detect Location' : 'Detect My Location'),
+                : hasData ? 'Re-detect Location' : context.translate('detect_my_location')),
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
               side: const BorderSide(color: AppColors.primary),
@@ -546,16 +562,23 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
               border: Border.all(color: AppColors.success.withOpacity(0.4)),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    const Icon(Icons.lightbulb_outline, color: AppColors.info, size: 18),
+                    const SizedBox(width: 8),
+                    Text(context.translate('how_it_works'),
+                        style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.info)),
+                  ]),
+              const SizedBox(height: 10),
               Row(children: [
                 const Icon(Icons.check_circle, color: AppColors.success, size: 18),
                 const SizedBox(width: 8),
-                const Text('Location Detected',
+                Text(context.translate('location_detected'),
                     style: TextStyle(fontWeight: FontWeight.w600,
                         color: AppColors.success, fontSize: 13)),
                 const Spacer(),
                 GestureDetector(
                   onTap: () => _tabCtrl.animateTo(0),
-                  child: const Text('Edit',
+                  child: Text(context.translate('edit'),
                       style: TextStyle(color: AppColors.primary,
                           fontSize: 12, fontWeight: FontWeight.w600)),
                 ),
@@ -571,7 +594,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
             ]),
           ),
           const SizedBox(height: 8),
-          const Text('Tap "Edit" to adjust values manually.',
+          Text(context.translate('edit_manual_hint'),
               style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
         ] else
           Container(

@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../core/app_theme.dart';
 import '../models/models.dart';
+import '../core/localization.dart';
 
 // ── Status Badge ────────────────────────────────────────────────────────────
 class StatusBadge extends StatelessWidget {
@@ -10,7 +11,7 @@ class StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (color, label, icon) = _getStatusProps(status);
+    final (color, label, icon) = _getStatusProps(context, status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -36,18 +37,18 @@ class StatusBadge extends StatelessWidget {
     );
   }
 
-  (Color, String, IconData) _getStatusProps(String status) {
+  (Color, String, IconData) _getStatusProps(BuildContext context, String status) {
     switch (status) {
       case 'OPEN':
-        return (AppColors.statusOpen, 'Open', Icons.radio_button_checked);
+        return (AppColors.statusOpen, context.translate('status_open'), Icons.radio_button_checked);
       case 'RESOLVED_L1':
-        return (AppColors.success, 'Resolved ✔', Icons.check_circle_outline);
+        return (AppColors.success, context.translate('status_resolved_l1'), Icons.check_circle_outline);
       case 'RESOLVED_L2':
-        return (AppColors.statusResolvedL2, 'Resolved ✔✔', Icons.check_circle);
+        return (AppColors.statusResolvedL2, context.translate('status_resolved_l2'), Icons.check_circle);
       case 'ESCALATED':
-        return (AppColors.statusEscalated, 'Escalated', Icons.warning_amber);
+        return (AppColors.statusEscalated, context.translate('status_escalated'), Icons.warning_amber);
       case 'CLOSED':
-        return (AppColors.statusClosed, 'Closed', Icons.lock_outline);
+        return (AppColors.statusClosed, context.translate('status_closed'), Icons.lock_outline);
       default:
         return (AppColors.textSecondary, status, Icons.circle_outlined);
     }
@@ -142,11 +143,11 @@ class IssueCard extends StatelessWidget {
               Row(
                 children: [
                   if (issue.category != null) ...[
-                    _chip(Icons.category_outlined, issue.category!),
+                    _chip(Icons.category_outlined, context.translate('cat_${_catKey(issue.category!)}')),
                     const SizedBox(width: 8),
                   ],
                   if (issue.urgencyLevel != null)
-                    _chip(Icons.priority_high, issue.urgencyLevel!,
+                    _chip(Icons.priority_high, context.translate('urgency_${issue.urgencyLevel!.toLowerCase()}'),
                         color: _urgencyColor(issue.urgencyLevel!)),
                   const Spacer(),
                   ResolutionTicks(
@@ -221,6 +222,23 @@ class IssueCard extends StatelessWidget {
       case 'medium': return AppColors.warning;
       default: return AppColors.success;
     }
+  }
+
+  String _catKey(String cat) {
+    final map = {
+      'Infrastructure & Roads': 'infra',
+      'Sanitation & Waste':    'sanitation',
+      'Water Supply':          'water',
+      'Electricity':           'electricity',
+      'Public Safety':         'safety',
+      'Healthcare':            'health',
+      'Education':             'edu',
+      'Transportation':        'transp',
+      'Environment':           'env',
+      'Government Services':   'gov',
+      'General':               'gen',
+    };
+    return map[cat] ?? 'gen';
   }
 }
 

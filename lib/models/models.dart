@@ -1,4 +1,4 @@
-// models/models.dart
+﻿// models/models.dart
 
 // ── Issue ─────────────────────────────────────────────────────────────────────
 class Issue {
@@ -20,10 +20,6 @@ class Issue {
   final String? leaderName;
   final String? citizenPhone;
   final String? leaderPhone;
-  // ── Clustering fields ──────────────────────────────────────────────────────
-  final String? issueClusterId;
-  final String? matchStatus;    // "auto_merged" | "pending_review" | "new_cluster"
-  final double? duplicateScore;
 
   const Issue({
     required this.id,
@@ -44,9 +40,6 @@ class Issue {
     this.leaderName,
     this.citizenPhone,
     this.leaderPhone,
-    this.issueClusterId,
-    this.matchStatus,
-    this.duplicateScore,
   });
 
   factory Issue.fromJson(Map<String, dynamic> json) => Issue(
@@ -69,16 +62,14 @@ class Issue {
                             DateTime.now(),
     citizenName:        json['citizen_name']     as String?,
     leaderName:         json['leader_name']      as String?,
-    citizenPhone:       (json['citizen_phone'] ?? json['phone'] ?? json['citizen_name']) as String?,
+    citizenPhone:       (json['citizen_phone'] ?? json['phone']) as String?,
     leaderPhone:        (json['leader_phone'] ?? json['leaderPhone']) as String?,
-    issueClusterId:     json['issue_cluster_id'] as String?,
-    matchStatus:        json['match_status']     as String?,
-    duplicateScore:     (json['duplicate_score'] as num?)?.toDouble(),
   );
 
   static List<String> _parseImageUrls(Map<String, dynamic> json) {
-    if (json['image_urls'] != null) return List<String>.from(json['image_urls'] as List);
-    if (json['image_url']  != null) return [json['image_url'] as String];
+    if (json['image_urls'] != null)
+      return List<String>.from(json['image_urls'] as List);
+    if (json['image_url'] != null) return [json['image_url'] as String];
     return [];
   }
 
@@ -90,11 +81,11 @@ class Issue {
 
 // ── User ──────────────────────────────────────────────────────────────────────
 class User {
-  final String id;
-  final String name;
-  final String email;
-  final String role;
-  final int    failedCases;
+  final String  id;
+  final String  name;
+  final String  email;
+  final String  role;
+  final int     failedCases;
   final String? phone;
 
   const User({
@@ -141,34 +132,37 @@ class LeaderMetrics {
   );
 }
 
-// ── SimilarCluster ────────────────────────────────────────────────────────────
-class SimilarCluster {
-  final String  clusterId;
-  final String  normalizedTitle;
+// ── SimilarIssueItem — used by leader's "Show Similar Issues" sheet ───────────
+class SimilarIssueItem {
+  final String  id;
+  final String  description;
+  final String  status;
   final String  category;
-  final int     complaintCount;
   final double  priorityScore;
-  final double  similarityScore;
-  final String? lastReportedAt;
+  final String? citizenName;
+  final String? createdAt;
+  final double  overlapScore;   // 0.0–1.0
 
-  const SimilarCluster({
-    required this.clusterId,
-    required this.normalizedTitle,
+  const SimilarIssueItem({
+    required this.id,
+    required this.description,
+    required this.status,
     required this.category,
-    required this.complaintCount,
     required this.priorityScore,
-    required this.similarityScore,
-    this.lastReportedAt,
+    this.citizenName,
+    this.createdAt,
+    required this.overlapScore,
   });
 
-  factory SimilarCluster.fromJson(Map<String, dynamic> j) => SimilarCluster(
-    clusterId:       j['cluster_id']       as String? ?? '',
-    normalizedTitle: j['normalized_title'] as String? ?? '',
-    category:        j['category']         as String? ?? '',
-    complaintCount:  (j['complaint_count'] as num?)?.toInt()    ?? 0,
-    priorityScore:   (j['priority_score']  as num?)?.toDouble() ?? 0.0,
-    similarityScore: (j['similarity_score'] as num?)?.toDouble() ?? 0.0,
-    lastReportedAt:  j['last_reported_at'] as String?,
+  factory SimilarIssueItem.fromJson(Map<String, dynamic> j) => SimilarIssueItem(
+    id:            j['id']             as String? ?? '',
+    description:   j['description']    as String? ?? '',
+    status:        j['status']         as String? ?? 'OPEN',
+    category:      j['category']       as String? ?? '',
+    priorityScore: (j['priority_score']  as num?)?.toDouble() ?? 0.5,
+    citizenName:   j['citizen_name']   as String?,
+    createdAt:     j['created_at']     as String?,
+    overlapScore:  (j['overlap_score'] as num?)?.toDouble() ?? 0.0,
   );
 }
 
@@ -179,9 +173,7 @@ class IssueCreateResponse {
   final String? leaderId;
   final String  category;
   final double  priorityScore;
-  final String? clusterId;
-  final String? matchStatus;    // "auto_merged" | "pending_review" | "new_cluster"
-  final double? duplicateScore;
+  final String? matchStatus;
 
   const IssueCreateResponse({
     required this.message,
@@ -189,9 +181,7 @@ class IssueCreateResponse {
     this.leaderId,
     required this.category,
     required this.priorityScore,
-    this.clusterId,
     this.matchStatus,
-    this.duplicateScore,
   });
 
   factory IssueCreateResponse.fromJson(Map<String, dynamic> j) =>
@@ -201,94 +191,15 @@ class IssueCreateResponse {
         leaderId:       j['leader_id']       as String?,
         category:       j['category']        as String? ?? '',
         priorityScore:  (j['priority_score']  as num?)?.toDouble() ?? 0.0,
-        clusterId:      j['cluster_id']      as String?,
         matchStatus:    j['match_status']    as String?,
-        duplicateScore: (j['duplicate_score'] as num?)?.toDouble(),
       );
 }
 
-// ── ScoreBreakdown ────────────────────────────────────────────────────────────
-class ScoreBreakdown {
-  final double  total;
-  final double  textSim;
-  final double  geoSim;
-  final double  timeSim;
-  final double? imgSim;
-  final double  catSim;
-
-  const ScoreBreakdown({
-    required this.total,
-    required this.textSim,
-    required this.geoSim,
-    required this.timeSim,
-    this.imgSim,
-    required this.catSim,
-  });
-
-  factory ScoreBreakdown.fromJson(Map<String, dynamic> j) => ScoreBreakdown(
-    total:   (j['total']    as num?)?.toDouble() ?? 0.0,
-    textSim: (j['text_sim'] as num?)?.toDouble() ?? 0.0,
-    geoSim:  (j['geo_sim']  as num?)?.toDouble() ?? 0.0,
-    timeSim: (j['time_sim'] as num?)?.toDouble() ?? 0.0,
-    imgSim:  (j['img_sim']  as num?)?.toDouble(),
-    catSim:  (j['cat_sim']  as num?)?.toDouble() ?? 0.0,
-  );
-}
-
-// ── ReviewQueueItem ───────────────────────────────────────────────────────────
-class ReviewQueueItem {
-  final String  reviewId;
-  final String  issueId;
-  final String  clusterId;
-  final double  score;
-  final ScoreBreakdown? scoreBreakdown;
-  final String? reason;
-  final String  status;
-  final String? createdAt;
-  final String? issueDescription;
-  final String? issueCategory;
-  final String? clusterTitle;
-  final int?    clusterComplaintCount;
-
-  const ReviewQueueItem({
-    required this.reviewId,
-    required this.issueId,
-    required this.clusterId,
-    required this.score,
-    this.scoreBreakdown,
-    this.reason,
-    required this.status,
-    this.createdAt,
-    this.issueDescription,
-    this.issueCategory,
-    this.clusterTitle,
-    this.clusterComplaintCount,
-  });
-
-  factory ReviewQueueItem.fromJson(Map<String, dynamic> j) => ReviewQueueItem(
-    reviewId:              j['review_id']              as String? ?? '',
-    issueId:               j['issue_id']               as String? ?? '',
-    clusterId:             j['cluster_id']             as String? ?? '',
-    score:                 (j['score']                 as num?)?.toDouble() ?? 0.0,
-    scoreBreakdown:        j['score_breakdown'] != null
-        ? ScoreBreakdown.fromJson(
-            j['score_breakdown'] as Map<String, dynamic>)
-        : null,
-    reason:                j['reason']                 as String?,
-    status:                j['status']                 as String? ?? 'PENDING',
-    createdAt:             j['created_at']             as String?,
-    issueDescription:      j['issue_description']      as String?,
-    issueCategory:         j['issue_category']         as String?,
-    clusterTitle:          j['cluster_title']          as String?,
-    clusterComplaintCount: (j['cluster_complaint_count'] as num?)?.toInt(),
-  );
-}
-
-// ── Social Monitor ───────────────────────────────────────────────────────────
+// ── Social Monitor ────────────────────────────────────────────────────────────
 class SocialMonitorResponse {
-  final int totalPosts;
-  final Map<String, int> trendingIssues;
-  final List<SocialPost> posts;
+  final int                totalPosts;
+  final Map<String, int>   trendingIssues;
+  final List<SocialPost>   posts;
 
   const SocialMonitorResponse({
     required this.totalPosts,
@@ -301,7 +212,8 @@ class SocialMonitorResponse {
         totalPosts:     json['total_posts']       as int? ?? 0,
         trendingIssues: Map<String, int>.from(json['trending_issues'] ?? {}),
         posts:          (json['posts'] as List? ?? [])
-            .map((e) => SocialPost.fromJson(Map<String, dynamic>.from(e as Map)))
+            .map((e) => SocialPost.fromJson(
+                Map<String, dynamic>.from(e as Map)))
             .toList(),
       );
 }
@@ -320,9 +232,9 @@ class SocialPost {
   });
 
   factory SocialPost.fromJson(Map<String, dynamic> json) => SocialPost(
-        title:         json['title']          as String? ?? '',
-        summary:       json['summary']        as String? ?? '',
-        sentiment:     json['sentiment']      as String? ?? 'NEUTRAL',
-        issueCategory: json['issue_category'] as String? ?? 'General',
-      );
+    title:         json['title']          as String? ?? '',
+    summary:       json['summary']        as String? ?? '',
+    sentiment:     json['sentiment']      as String? ?? 'NEUTRAL',
+    issueCategory: json['issue_category'] as String? ?? 'General',
+  );
 }

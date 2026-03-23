@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/issues_provider.dart';
 import '../../services/api_service.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/localization.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tag definitions
@@ -172,10 +173,19 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen>
                                   color: Colors.white, size: 18),
                             ),
                             const SizedBox(width: 10),
-                            const Text('Community Feed',
-                                style: TextStyle(color: Colors.white,
+                            Text(context.translate('feed_title'),
+                                style: const TextStyle(color: Colors.white,
                                     fontSize: 20, fontWeight: FontWeight.w800)),
                             const Spacer(),
+                            IconButton(
+                              onPressed: () {
+                                final currentLocale = ref.read(localeProvider);
+                                ref.read(localeProvider.notifier).setLocale(currentLocale.languageCode == 'en' 
+                                        ? const Locale('hi') 
+                                        : const Locale('en'));
+                              },
+                              icon: const Icon(Icons.language, color: Colors.white, size: 20),
+                            ),
                             IconButton(
                               icon: const Icon(Icons.refresh_rounded,
                                   color: Colors.white70, size: 20),
@@ -185,8 +195,8 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen>
                           const SizedBox(height: 6),
                           Text(
                             isLeader
-                                ? 'Share updates with your community'
-                                : 'Stay informed by your local leaders',
+                                ? context.translate('share_updates')
+                                : context.translate('stay_informed'),
                             style: TextStyle(
                                 color: Colors.white.withOpacity(0.75),
                                 fontSize: 12),
@@ -241,8 +251,8 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen>
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 icon: const Icon(Icons.edit_rounded),
-                label: const Text('Post Update',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
+                label: Text(context.translate('post_update'),
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
                 elevation: 4,
               ),
             )
@@ -471,7 +481,7 @@ class _PostCardState extends State<_PostCard>
                 const Icon(Icons.chat_bubble_outline_rounded, size: 13,
                     color: AppColors.textHint),
                 const SizedBox(width: 4),
-                Text('$commentCount ${commentCount == 1 ? "comment" : "comments"}',
+                Text('$commentCount ${commentCount == 1 ? context.translate('comment').toLowerCase() : context.translate('comment').toLowerCase() + "s"}',
                     style: const TextStyle(fontSize: 12,
                         color: AppColors.textSecondary)),
               ],
@@ -494,7 +504,7 @@ class _PostCardState extends State<_PostCard>
                 icon: _liked
                     ? Icons.favorite_rounded
                     : Icons.favorite_border_rounded,
-                label: 'Like',
+                label: context.translate('like'),
                 color: _liked ? const Color(0xFFE53935) : AppColors.textSecondary,
                 onTap: _toggleLike,
                 animating: _likeAnimating,
@@ -502,14 +512,14 @@ class _PostCardState extends State<_PostCard>
               // Comment
               Expanded(child: _ActionBtn(
                 icon: Icons.chat_bubble_outline_rounded,
-                label: 'Comment',
+                label: context.translate('comment'),
                 color: AppColors.textSecondary,
                 onTap: _openComments,
               )),
               // Share
               Expanded(child: _ActionBtn(
                 icon: Icons.share_rounded,
-                label: 'Share',
+                label: context.translate('share'),
                 color: AppColors.textSecondary,
                 onTap: _share,
               )),
@@ -677,7 +687,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
             const Icon(Icons.chat_bubble_rounded,
                 color: AppColors.primary, size: 20),
             const SizedBox(width: 8),
-            Text('Comments (${_comments.length})',
+            Text(context.translate('comments_count').replaceAll('{count}', _comments.length.toString()),
                 style: const TextStyle(fontSize: 16,
                     fontWeight: FontWeight.w800,
                     color: AppColors.textPrimary)),
@@ -694,11 +704,11 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                   Icon(Icons.chat_bubble_outline_rounded,
                       size: 48, color: Colors.grey[300]),
                   const SizedBox(height: 12),
-                  Text('No comments yet',
+                  Text(context.translate('no_comments'),
                       style: TextStyle(color: Colors.grey[500],
                           fontSize: 14, fontWeight: FontWeight.w500)),
                   const SizedBox(height: 4),
-                  Text('Be the first to comment!',
+                  Text(context.translate('be_first_comment'),
                       style: TextStyle(color: Colors.grey[400], fontSize: 12)),
                 ]),
               )
@@ -721,7 +731,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
             child: Row(children: [
               const Icon(Icons.reply_rounded, size: 16, color: AppColors.primary),
               const SizedBox(width: 6),
-              Text('Replying to $_replyToName',
+              Text(context.translate('repelling_to').replaceAll('{name}', _replyToName!),
                   style: const TextStyle(fontSize: 12,
                       color: AppColors.primary, fontWeight: FontWeight.w600)),
               const Spacer(),
@@ -758,8 +768,8 @@ class _CommentsSheetState extends State<_CommentsSheet> {
               textCapitalization: TextCapitalization.sentences,
               decoration: InputDecoration(
                 hintText: _replyToName != null
-                    ? 'Reply to $_replyToName…'
-                    : 'Write a comment…',
+                    ? context.translate('reply_to').replaceAll('{name}', _replyToName!)
+                    : context.translate('write_comment'),
                 hintStyle: const TextStyle(color: AppColors.textHint,
                     fontSize: 13),
                 border: OutlineInputBorder(

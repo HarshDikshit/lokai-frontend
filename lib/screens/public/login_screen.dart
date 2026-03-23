@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../core/localization.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -57,10 +58,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back_ios, color: AppColors.primary),
-                onPressed: () => context.go('/'),
-                padding: EdgeInsets.zero,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios, color: AppColors.primary),
+                    onPressed: () => context.go('/'),
+                    padding: EdgeInsets.zero,
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      final currentLocale = ref.read(localeProvider);
+                      ref.read(localeProvider.notifier).setLocale(currentLocale.languageCode == 'en' 
+                              ? const Locale('hi') 
+                              : const Locale('en'));
+                    },
+                    icon: const Icon(Icons.language, color: AppColors.primary),
+                  ),
+                ],
               ),
               const SizedBox(height: 32),
 
@@ -74,11 +89,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: const Icon(Icons.account_balance, color: Colors.white, size: 32),
               ),
               const SizedBox(height: 24),
-              Text('Welcome Back', style: Theme.of(context).textTheme.headlineLarge),
+              Text(context.translate('welcome_back'), style: Theme.of(context).textTheme.headlineLarge),
               const SizedBox(height: 8),
-              const Text(
-                'Sign in to your LokAI account',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 15),
+              Text(
+                context.translate('sign_in_to_account'),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 15),
               ),
               const SizedBox(height: 40),
 
@@ -91,12 +106,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     keyboardType: TextInputType.emailAddress,
                     // Clear stale error when user edits
                     onChanged: (_) => ref.read(authProvider.notifier).clearError(),
-                    decoration: const InputDecoration(
-                      labelText: 'Email Address',
-                      prefixIcon: Icon(Icons.email_outlined),
+                    decoration: InputDecoration(
+                      labelText: context.translate('email_address'),
+                      prefixIcon: const Icon(Icons.email_outlined),
                     ),
                     validator: (v) =>
-                        v == null || !v.contains('@') ? 'Enter valid email' : null,
+                        v == null || !v.contains('@') ? context.translate('enter_valid_email') : null,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -104,7 +119,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     obscureText: _obscure,
                     onChanged: (_) => ref.read(authProvider.notifier).clearError(),
                     decoration: InputDecoration(
-                      labelText: 'Password',
+                      labelText: context.translate('password'),
                       prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
                         icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
@@ -112,7 +127,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                     validator: (v) =>
-                        v == null || v.length < 6 ? 'Min 6 characters' : null,
+                        v == null || v.length < 6 ? context.translate('min_6_char') : null,
                   ),
 
                   // Inline error
@@ -144,17 +159,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ? const SizedBox(height: 20, width: 20,
                               child: CircularProgressIndicator(
                                   strokeWidth: 2, color: Colors.white))
-                          : const Text('Sign In'),
+                          : Text(context.translate('sign_in')),
                     ),
                   ),
                   const SizedBox(height: 16),
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    const Text("Don't have an account? ",
-                        style: TextStyle(color: AppColors.textSecondary)),
+                    Text(context.translate('dont_have_account'),
+                        style: const TextStyle(color: AppColors.textSecondary)),
                     GestureDetector(
                       onTap: () => context.go('/register'),
-                      child: const Text('Register',
-                          style: TextStyle(color: AppColors.primary,
+                      child: Text(context.translate('register'),
+                          style: const TextStyle(color: AppColors.primary,
                               fontWeight: FontWeight.w600)),
                     ),
                   ]),

@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http_parser/http_parser.dart';
@@ -245,38 +245,23 @@ class ApiService {
   }
 
 
-  // ── Duplicate / Cluster ───────────────────────────────────────────────────
-  Future<Map<String, dynamic>> getSimilarIssues({
+  // ── Duplicate / Similar ──────────────────────────────────────────────────
+  Future<Map<String, dynamic>> checkDuplicate({
     required String description,
-    required double latitude,
-    required double longitude,
-    String? category,
+    required String city,
+    required String town,
   }) async {
-    final res = await _dio.get('/issues/similar', queryParameters: {
+    final res = await _dio.get('/issues/check-duplicate', queryParameters: {
       'description': description,
-      'latitude':    latitude,
-      'longitude':   longitude,
-      if (category != null) 'category': category,
+      'city':        city,
+      'town':        town,
     });
     return res.data;
   }
 
-  Future<Map<String, dynamic>> supportIssue(String issueId) async {
-    final res = await _dio.post('/issues/$issueId/support');
-    return res.data;
-  }
-
-  Future<List<dynamic>> getReviewQueue() async {
-    final res = await _dio.get('/issues/review/queue');
-    return (res.data['items'] as List?) ?? [];
-  }
-
-  Future<Map<String, dynamic>> decideReview(
-      String reviewId, String decision) async {
-    final res = await _dio.post(
-        '/issues/review/$reviewId/decide',
-        queryParameters: {'decision': decision});
-    return res.data;
+  Future<List<dynamic>> getSimilarIssuesForLeader(String issueId) async {
+    final res = await _dio.get('/issues/$issueId/similar-leader');
+    return res.data as List? ?? [];
   }
 
   Future<Map<String, dynamic>> getAuthorityDashboard() async {
@@ -346,4 +331,12 @@ class ApiService {
     });
     return res.data;
   }
-}
+
+  // ── Chatbot ──────────────────────────────────────────────────────────────
+  Future<Map<String, dynamic>> chatWithBot(String message) async {
+    final res = await _dio.post(ApiConstants.chatbotChat, data: {
+      'message': message,
+    });
+    return res.data;
+  }
+}

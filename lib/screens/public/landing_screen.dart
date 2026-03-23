@@ -1,12 +1,14 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/app_theme.dart';
+import '../../core/localization.dart';
 
-class LandingScreen extends StatelessWidget {
+class LandingScreen extends ConsumerWidget {
   const LandingScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       backgroundColor: AppColors.primary,
       body: SafeArea(
@@ -46,6 +48,16 @@ class LandingScreen extends StatelessWidget {
                       ),
                     ],
                   ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () {
+                      final currentLocale = ref.read(localeProvider);
+                      ref.read(localeProvider.notifier).setLocale(currentLocale.languageCode == 'en' 
+                              ? const Locale('hi') 
+                              : const Locale('en'));
+                    },
+                    icon: const Icon(Icons.language, color: Colors.white),
+                  ),
                 ],
               ),
 
@@ -63,17 +75,17 @@ class LandingScreen extends StatelessWidget {
                         color: Colors.white.withOpacity(0.15),
                       ),
                       const SizedBox(height: 40),
-                      const Text(
-                        'Your Voice,\nYour City,\nYour Change',
+                      Text(
+                        context.translate('hero_title'),
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 30, fontWeight: FontWeight.w700,
                           color: Colors.white, height: 1.15,
                         ),
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        'Report civic issues, track resolutions,\nand hold your local leaders accountable.',
+                        context.translate('hero_subtitle'),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 15, color: Colors.white.withOpacity(0.75),
@@ -89,10 +101,10 @@ class LandingScreen extends StatelessWidget {
               Wrap(
                 spacing: 10, runSpacing: 8, 
                 children: [
-                  _featureChip(Icons.report_problem_outlined, 'Report Issues'),
-                  _featureChip(Icons.track_changes, 'Track Status'),
-                  _featureChip(Icons.verified_outlined, 'Verify Resolution'),
-                  _featureChip(Icons.analytics_outlined, 'AI Prioritization'),
+                  _featureChip(Icons.report_problem_outlined, context.translate('feature_report')),
+                  _featureChip(Icons.track_changes, context.translate('feature_track')),
+                  _featureChip(Icons.verified_outlined, context.translate('feature_verify')),
+                  _featureChip(Icons.analytics_outlined, context.translate('feature_ai')),
                 ],
               ),
 
@@ -109,9 +121,9 @@ class LandingScreen extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 18),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
-                  child: const Text(
-                    'Get Started',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  child: Text(
+                    context.translate('get_started'),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -125,7 +137,7 @@ class LandingScreen extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   child: Text(
-                    'New here? Create account',
+                    context.translate('new_here_create'),
                     style: TextStyle(
                       fontSize: 15, color: Colors.white.withOpacity(0.85),
                       fontWeight: FontWeight.w500,

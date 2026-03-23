@@ -9,18 +9,19 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
 import '../../providers/issues_provider.dart';
 import '../../widgets/common_widgets.dart';
+import '../../core/localization.dart';
 
 // ── Urgency helpers ───────────────────────────────────────────────────────────
 
 enum Urgency { critical, high, medium, low }
 
 extension UrgencyExt on Urgency {
-  String get label {
+  String label(BuildContext context) {
     switch (this) {
-      case Urgency.critical: return '🔴 Critical';
-      case Urgency.high:     return '🟠 High';
-      case Urgency.medium:   return '🟡 Medium';
-      case Urgency.low:      return '🟢 Low';
+      case Urgency.critical: return '🔴 ${context.translate('urgency_critical')}';
+      case Urgency.high:     return '🟠 ${context.translate('urgency_high')}';
+      case Urgency.medium:   return '🟡 ${context.translate('urgency_medium')}';
+      case Urgency.low:      return '🟢 ${context.translate('urgency_low')}';
     }
   }
 
@@ -66,11 +67,14 @@ class _MyIssuesScreenState extends ConsumerState<MyIssuesScreen> {
 
   String _labelFor(String status) {
     switch (status) {
-      case 'All':         return 'All';
-      case 'RESOLVED_L1': return 'Resolved ✔';
-      case 'RESOLVED_L2': return 'Resolved ✔✔';
+      case 'All':         return context.translate('status_all');
+      case 'OPEN':        return context.translate('status_open');
+      case 'RESOLVED_L1': return '${context.translate('status_resolved')} ✔';
+      case 'RESOLVED_L2': return '${context.translate('status_resolved')} ✔✔';
+      case 'CLOSED':      return context.translate('status_closed');
+      case 'ESCALATED':   return context.translate('status_escalated');
       default:
-        return status[0] + status.substring(1).toLowerCase();
+        return status;
     }
   }
 
@@ -129,13 +133,22 @@ class _MyIssuesScreenState extends ConsumerState<MyIssuesScreen> {
       icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.black),
       onPressed: () => _handleBack(context),
     ),
-    title: const Text('My Issues',
-        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20,
+    title: Text(context.translate('my_issues'),
+        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 20,
             color: Color(0xFF1A1A2E))),
     actions: [
       IconButton(
-        icon: const Icon(Icons.refresh_rounded),
-        tooltip: 'Refresh',
+        onPressed: () {
+          final currentLocale = ref.read(localeProvider);
+          ref.read(localeProvider.notifier).setLocale(currentLocale.languageCode == 'en' 
+                  ? const Locale('hi') 
+                  : const Locale('en'));
+        },
+        icon: const Icon(Icons.language, color: Colors.black),
+      ),
+      IconButton(
+        icon: const Icon(Icons.refresh_rounded, color: Colors.black),
+        tooltip: context.translate('refresh'),
         onPressed: () => ref.read(issuesProvider.notifier).fetchIssues(),
       ),
     ],
@@ -143,12 +156,12 @@ class _MyIssuesScreenState extends ConsumerState<MyIssuesScreen> {
 
   Widget _buildFab(BuildContext context, bool isWide) =>
       FloatingActionButton.extended(
-        onPressed: () => context.go('/citizen/submit'),
+        onPressed: () => context.push('/citizen/submit'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 3,
         icon: const Icon(Icons.add_rounded),
-        label: Text('Report New',
+        label: Text(context.translate('report_new'),
             style: TextStyle(fontWeight: FontWeight.w600,
                 fontSize: isWide ? 15 : 14)),
       );
@@ -220,21 +233,22 @@ class _MyIssuesScreenState extends ConsumerState<MyIssuesScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          Padding(
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
             padding: EdgeInsets.symmetric(horizontal: hPad),
             child: Row(children: [
-              const Text('Sort by:', style: TextStyle(fontSize: 13,
+              Text('${context.translate('sort_by')} ', style: const TextStyle(fontSize: 13,
                   fontWeight: FontWeight.w500, color: Color(0xFF6B7280))),
               const SizedBox(width: 10),
               _SortPill(
-                label:    'Latest',
+                label:    context.translate('latest'),
                 icon:     Icons.access_time_rounded,
                 selected: _sortType == SortType.latest,
                 onTap:    () => setState(() => _sortType = SortType.latest),
               ),
               const SizedBox(width: 8),
               _SortPill(
-                label:    'Urgency',
+                label:    context.translate('urgency'),
                 icon:     Icons.local_fire_department_rounded,
                 selected: _sortType == SortType.urgency,
                 onTap:    () => setState(() => _sortType = SortType.urgency),
@@ -261,16 +275,16 @@ class _MyIssuesScreenState extends ConsumerState<MyIssuesScreen> {
             size: isWide ? 72 : 56, color: const Color(0xFF9CA3AF)),
       ),
       SizedBox(height: isWide ? 28 : 20),
-      Text('No issues reported yet',
+      Text(context.translate('no_issues_reported'),
           style: TextStyle(fontSize: isWide ? 22 : 18,
               fontWeight: FontWeight.w700, color: const Color(0xFF374151))),
       const SizedBox(height: 8),
       Padding(
         padding: EdgeInsets.symmetric(horizontal: isWide ? 120 : 40),
-        child: const Text(
-          'Tap "Report New" below to raise your first civic issue',
+        child: Text(
+          context.translate('tap_report_new'),
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+          style: const TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
         ),
       ),
       const SizedBox(height: 80),
@@ -282,7 +296,7 @@ class _MyIssuesScreenState extends ConsumerState<MyIssuesScreen> {
       const Icon(Icons.filter_list_off_rounded,
           size: 48, color: Color(0xFFD1D5DB)),
       const SizedBox(height: 12),
-      Text('No "${_labelFor(_selectedStatus)}" issues',
+      Text(context.translate('no_match_issues').replaceAll('{status}', _labelFor(_selectedStatus)),
           style: const TextStyle(fontSize: 16,
               fontWeight: FontWeight.w600, color: Color(0xFF6B7280))),
     ]),
@@ -303,7 +317,7 @@ class _MyIssuesScreenState extends ConsumerState<MyIssuesScreen> {
       ElevatedButton.icon(
         onPressed: () => ref.read(issuesProvider.notifier).fetchIssues(),
         icon: const Icon(Icons.refresh_rounded),
-        label: const Text('Retry'),
+        label: Text(context.translate('retry')),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
@@ -411,8 +425,6 @@ class _IssueCardWrapper extends StatelessWidget {
     final score   = (issue.priorityScore as double?) ?? 0.0;
     final urgency = urgencyFromScore(score);
 
-    // Match status from duplicate pipeline (nullable — safe on old data)
-    final String? matchStatus = issue.matchStatus as String?;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -432,74 +444,22 @@ class _IssueCardWrapper extends StatelessWidget {
 
           // Urgency chip row (unchanged)
           Padding(
-            padding: EdgeInsets.fromLTRB(12, 0, 12, matchStatus != null ? 4 : 10),
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
             child: Row(children: [
               const Icon(Icons.local_fire_department_rounded,
                   size: 13, color: Color(0xFF9CA3AF)),
               const SizedBox(width: 4),
-              const Text('Urgency:', style: TextStyle(fontSize: 11,
+              Text('${context.translate('urgency')}:', style: const TextStyle(fontSize: 11,
                   color: Color(0xFF9CA3AF), fontWeight: FontWeight.w500)),
               const SizedBox(width: 6),
               _UrgencyChip(urgency: urgency),
             ]),
           ),
-
-          // ── NEW: match status row ────────────────────────────────────
-          if (matchStatus != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-              child: _MatchStatusBadge(matchStatus: matchStatus),
-            ),
         ]),
       ),
     );
   }
 }
-
-// ── _MatchStatusBadge ─────────────────────────────────────────────────────────
-
-class _MatchStatusBadge extends StatelessWidget {
-  final String matchStatus;
-  const _MatchStatusBadge({required this.matchStatus});
-
-  @override
-  Widget build(BuildContext context) {
-    final IconData icon;
-    final String   label;
-    final Color    color;
-
-    if (matchStatus == 'auto_merged') {
-      icon  = Icons.merge_rounded;
-      label = 'Merged with similar reports';
-      color = const Color(0xFF2E7D32);
-    } else if (matchStatus == 'pending_review') {
-      icon  = Icons.hourglass_top_rounded;
-      label = 'Under duplicate review';
-      color = const Color(0xFFF9A825);
-    } else {
-      icon  = Icons.fiber_new_rounded;
-      label = 'First report in this area';
-      color = AppColors.primary;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color:        color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(20),
-        border:       Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 12, color: color),
-        const SizedBox(width: 5),
-        Text(label, style: TextStyle(fontSize: 11,
-            fontWeight: FontWeight.w600, color: color)),
-      ]),
-    );
-  }
-}
-
-// ── _UrgencyChip ─────────────────────────────────────────────────────────────
 
 class _UrgencyChip extends StatelessWidget {
   final Urgency urgency;
@@ -513,7 +473,7 @@ class _UrgencyChip extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
       border: Border.all(color: urgency.color.withOpacity(0.4)),
     ),
-    child: Text(urgency.label, style: TextStyle(fontSize: 11,
+    child: Text(urgency.label(context), style: TextStyle(fontSize: 11,
         fontWeight: FontWeight.w700, color: urgency.color)),
   );
 }

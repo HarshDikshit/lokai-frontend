@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
 import '../core/app_constants.dart';
@@ -43,12 +43,14 @@ class AuthState {
   }
 }
 
-class AuthNotifier extends StateNotifier<AuthState> {
+class AuthNotifier extends Notifier<AuthState> {
   final _storage = const FlutterSecureStorage();
   final _api = ApiService.instance;
 
-  AuthNotifier() : super(AuthState()) {
+  @override
+  AuthState build() {
     _loadStoredAuth();
+    return AuthState();
   }
 
   Future<void> _loadStoredAuth() async {
@@ -150,6 +152,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 }
 
-final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
+final authProvider = NotifierProvider<AuthNotifier, AuthState>(() {
   return AuthNotifier();
 });
