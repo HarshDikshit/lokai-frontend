@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +7,8 @@ import 'package:geocoding/geocoding.dart';
 import '../../core/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../core/localization.dart';
+import '../../screens/citizen/location_picker_screen.dart';
+
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -41,7 +43,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
+    _tabCtrl = TabController(length: 3, vsync: this);
     _tabCtrl.addListener(() => setState(() => _zoneTab = _tabCtrl.index));
   }
 
@@ -446,6 +448,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
           padding: const EdgeInsets.all(4),
           child: TabBar(
             controller: _tabCtrl,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             indicator: BoxDecoration(
                 color: AppColors.primary, borderRadius: BorderRadius.circular(9)),
             indicatorSize: TabBarIndicatorSize.tab,
@@ -464,6 +468,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                 const SizedBox(width: 6),
                 Text(context.translate('use_location')),
               ])),
+              Tab(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Icon(Icons.map, size: 15),
+                const SizedBox(width: 6),
+                Text(context.translate('choose_on_map')),
+              ])),
             ],
           ),
         ),
@@ -473,7 +482,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
           duration: const Duration(milliseconds: 220),
           child: _zoneTab == 0
               ? _manualZone(isTablet: isTablet)
-              : _locationZone(),
+              : _zoneTab == 1
+                  ? _locationZone()
+                  : _mapZone(),
         ),
       ],
     );
@@ -615,6 +626,92 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
           ),
       ],
     );
+  }
+
+  Widget _mapZone() {
+    final hasData = _stateCtrl.text.isNotEmpty || _cityCtrl.text.isNotEmpty;
+    return Column(
+      key: const ValueKey('map'),
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _openMapPicker,
+            icon: const Icon(Icons.map_outlined),
+            label: Text(hasData ? 'Change Map Location' : context.translate('choose_on_map')),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              side: const BorderSide(color: AppColors.primary),
+              foregroundColor: AppColors.primary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        if (hasData) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.successLight,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.success.withOpacity(0.4)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const Icon(Icons.check_circle, color: AppColors.success, size: 18),
+                const SizedBox(width: 8),
+                Text(context.translate('location_detected'),
+                    style: const TextStyle(fontWeight: FontWeight.w600,
+                        color: AppColors.success, fontSize: 13)),
+              ]),
+              const SizedBox(height: 10),
+              _locRow(Icons.map_outlined, 'State', _stateCtrl.text),
+              const SizedBox(height: 5),
+              _locRow(Icons.location_city_outlined, 'City', _cityCtrl.text),
+              if (_townCtrl.text.isNotEmpty) ...[
+                const SizedBox(height: 5),
+                _locRow(Icons.holiday_village_outlined, 'Town', _townCtrl.text),
+              ],
+            ]),
+          ),
+          const SizedBox(height: 8),
+          Text(context.translate('edit_manual_hint'),
+              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+        ] else
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.inputFill, borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.borderColor),
+            ),
+            child: const Row(children: [
+              Icon(Icons.info_outline, color: AppColors.textSecondary, size: 16),
+              SizedBox(width: 10),
+              Expanded(child: Text(
+                'Open map to visually select your working zone.',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              )),
+            ]),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _openMapPicker() async {
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+        builder: (_) => const LocationPickerScreen(),
+      ),
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _stateCtrl.text = result['state'] as String? ?? '';
+        _cityCtrl.text  = result['city'] as String? ?? '';
+        _townCtrl.text  = result['town'] as String? ?? '';
+      });
+    }
   }
 
   Widget _locRow(IconData icon, String label, String value) => Row(children: [
